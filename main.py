@@ -12,11 +12,11 @@ from sklearn.preprocessing import scale, StandardScaler
 from models import *
 from utils import *
 
-# wav_dir = '/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav'
+#wav_dir = '/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav'
 wav_dir = '/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav'
 
 files = os.listdir(wav_dir)
-train_files = files[:1032]
+train_files = files[:100]
 test_files = files[1032:]
 decode_file = files[1032]
 
@@ -36,7 +36,6 @@ for f in train_files:
 
     y = y[:len(y) // seq_M * seq_M]
     h = h[:, :len(y)]
-
     train_wav += [y]
     train_feature += [h]
 
@@ -56,7 +55,7 @@ train_label = train_wav.astype(int)
 
 # reshaping
 train_wav, train_feature, train_label = train_wav.reshape(-1, 1, seq_M), np.swapaxes(
-    train_feature.reshape(-1, seq_M, 25), 1, 2), train_label.reshape(-1, seq_M)
+    train_feature.reshape(-1, seq_M, 26), 1, 2), train_label.reshape(-1, seq_M)
 
 # padding zeros
 train_wav = np.pad(train_wav, ((0, 0), (0, 0), (N, 0)), mode='constant')[:, :, :-1]
@@ -72,7 +71,7 @@ dataset = TensorDataset(train_wav, train_feature, train_label)
 loader = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
 
 print('==> Building model..')
-net = FFTNet(depth=depth, feature_width=25, channels=channels, classes=channels).cuda()
+net = FFTNet(depth=depth, feature_width=26, channels=channels, classes=channels).cuda()
 net = torch.nn.DataParallel(net)
 cudnn.bscalerhmark = True
 
@@ -110,7 +109,7 @@ if __name__ == '__main__':
 
                 output_buf = []
                 x_buf = np.zeros(N)
-                h_buf = np.zeros((25, N))
+                h_buf = np.zeros((26, N))
                 with torch.no_grad():
                     for i in range(len(y)):
                         features = np.hstack((h_buf[:, 1:], h[:, i, np.newaxis]))[np.newaxis, :]
