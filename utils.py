@@ -3,6 +3,8 @@ from librosa.feature import mfcc
 from librosa.core import load
 from scipy.interpolate import interp1d
 from aubio import pitch
+import torch.nn.init as init
+import torch.nn as nn
 
 
 # import matplotlib.pyplot as plt
@@ -19,9 +21,9 @@ def inv_mu_law_transform(y, quantization_channels):
     return y_mu
 
 
-def get_wav_and_feature(filename, n_mfcc=25, n_fft=400, hop_length=160):
+def get_wav_and_feature(filename, n_fft=400, hop_length=160, feature_size=26):
     y, sr = load(filename, sr=None)
-    h = mfcc(y, sr, n_mfcc=n_mfcc, n_fft=n_fft, hop_length=hop_length)
+    h = mfcc(y, sr, n_mfcc=feature_size-1, n_fft=n_fft, hop_length=hop_length)
 
     po = pitch("yin", n_fft, hop_length, sr)
     f0 = []
@@ -29,7 +31,6 @@ def get_wav_and_feature(filename, n_mfcc=25, n_fft=400, hop_length=160):
     for pos in range(hop_length, len(y), hop_length):
         samples = y[pos-hop_length:pos]
         p = po(samples.astype(np.float32))[0]
-        #print(pos, p)
         f0.append(p)
 
     if len(f0) > h.shape[1]:
@@ -40,11 +41,22 @@ def get_wav_and_feature(filename, n_mfcc=25, n_fft=400, hop_length=160):
 
     # interpolation
     x = np.arange(h.shape[1]) * 160
-    f = interp1d(x, h)
+    f = interp1d(x, h, copy=False)
     y = y[:x[-1]]
     h = f(np.arange(len(y)))
     return sr, y, h
 
 
+def init_weights(m):
+    if type(m) == nn.Conv2d:
+        N = m.in_channels * np.prod(m.kernel_size)
+        m.weight.data.normal_(0., np.sqrt(1 / N))
+        m.bias.data.fill_(0)
+    elif type(m) == nn.Linear:
+        N = m.in_features
+        m.weight.data.normal_(0., np.sqrt(1 / N))
+        m.bias.data.fill_(0)
+
+
 if __name__ == '__main__':
-    x = np.sin(np.linspace(0, 2 * np.pi, 200))
+    get_wav_and_feature("sample.wav")
