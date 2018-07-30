@@ -36,15 +36,24 @@ class general_FFTLayer(nn.Module):
 
 
 class general_FFTLayer_aux(nn.Module):
-    def __init__(self, in_channels, aux_channels, out_channels, N, radix=2):
+    def __init__(self, in_channels, aux_channels, out_channels, N, radix=2, stationary=False):
         super().__init__()
         self.radix = radix
         self.W_lr = nn.Conv1d(in_channels, out_channels, kernel_size=radix, dilation=N // radix)
-        self.V_lr = nn.Conv1d(aux_channels, out_channels, kernel_size=radix, dilation=N // radix)
+        self.stationary = stationary
+        if stationary:
+            self.V_n = nn.Conv1d(aux_channels, out_channels, kernel_size=1)
+        else:
+            self.V_lr = nn.Conv1d(aux_channels, out_channels, kernel_size=radix, dilation=N // radix)
         self.W_o = nn.Conv1d(out_channels, out_channels, kernel_size=1)
 
     def forward(self, x, h):
-        return F.relu(self.W_o(F.relu(self.W_lr(x) + self.V_lr(h))))
+        if self.stationary:
+            h = h.view(1, -1, 1).expand(x.size(0), -1, -1)
+            h = self.V_n(h)
+        else:
+            h = self.V_lr(h)
+        return F.relu(self.W_o(F.relu(self.W_lr(x) + h)))
 
 
 class FFTNet(nn.Module):
@@ -99,15 +108,21 @@ class FFTNet_aux(nn.Module):
 
 
 class general_FFTNet_aux(nn.Module):
-    def __init__(self, radixs=[2] * 11, in_channels=1, feature_width=26, channels=256, classes=256, inverse=False):
+    def __init__(self, radixs=[2] * 11, in_channels=1, feature_width=26, channels=256, classes=256, inverse=False,
+                 stationary=False):
         super().__init__()
         self.classes = classes
+        self.stationary = stationary
         N_seq = [reduce(mul, radixs[i:]) for i in range(len(radixs))]
         self.r_field = N_seq[0]
         if inverse:
             N_seq = reversed(N_seq)
 
-        self.first_layer = general_FFTLayer_aux(in_channels, feature_width, channels, N_seq[0], radix=radixs[0])
+        if feature_width > 0:
+            self.first_layer = general_FFTLayer_aux(in_channels, feature_width, channels, N_seq[0], radixs[0],
+                                                    stationary)
+        else:
+            self.first_layer = general_FFTLayer(in_channels, channels, N_seq[0], radixs[0])
 
         fft_layers = []
         for i in range(1, len(radixs)):
@@ -116,18 +131,23 @@ class general_FFTNet_aux(nn.Module):
         self.fc_out = nn.Linear(channels, classes)
         self.padding_layer = nn.ConstantPad1d((self.r_field, 0), 0.)
 
-    def forward(self, x, h, zeropad=True):
+    def forward(self, x, h=None, zeropad=True):
         if zeropad:
             x = self.padding_layer(x)
-            h = self.padding_layer(h)
-        x = self.first_layer(x, h)
+
+        if h is None:
+            x = self.first_layer(x)
+        else:
+            if not self.stationary and zeropad:
+                h = self.padding_layer(h)
+            x = self.first_layer(x, h)
         x = self.fft_layers(x)
         x = self.fc_out(x.transpose(1, 2))
         return x.transpose(1, 2)
 
 
 if __name__ == '__main__':
-    net = general_FFTNet_aux(radixs=[2] + [4] * 5)
-    y = net(torch.randn(1, 1, 5000), torch.randn(1, 26, 5000))
+    net = general_FFTNet_aux(radixs=[2] + [3] * 5, feature_width=0)
+    y = net(torch.randn(1, 1, 5000))
     y_hat = y.transpose(1, 2).unsqueeze(-1)
     print(y.size(), y_hat.size())

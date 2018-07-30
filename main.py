@@ -26,7 +26,7 @@ decode_file = files[1032]
 seq_M = 5000
 batch_size = 5
 lr = 1e-4
-steps = 50000
+steps = 100000
 channels = 256
 # depth = 11
 # N = 2 ** depth
@@ -39,7 +39,7 @@ train_wav = []
 train_feature = []
 print("Reading training data...")
 for f in train_files:
-    _, y, h = get_wav_and_feature(os.path.join(wav_dir, f), feature_size=feature_size)
+    _, y, h = get_wav_and_feature(os.path.join(wav_dir, f), feature_size=feature_size, include_f0=True)
 
     y = y[:len(y) // seq_M * seq_M]
     h = h[:, :len(y)]
@@ -52,8 +52,9 @@ train_feature = np.hstack(train_feature).T
 # mu law mappgin
 train_wav = mu_law_transform(train_wav, channels)
 # quantize
-train_label = np.floor((train_wav + 1) / 2 * (channels - 1)).astype(int)
-train_label = np.roll(train_label, shift=-1)
+train_label = np.floor((train_wav + 1) / 2 * (channels - 1))
+#train_wav = train_label / (channels - 1) * 2 - 1
+train_label = np.roll(train_label, shift=-1).astype(int)
 # normalize
 scaler = StandardScaler()
 train_feature = scaler.fit_transform(train_feature)
@@ -112,7 +113,7 @@ if __name__ == '__main__':
 
         print("docoding...")
 
-        plt.subplot(3, 1, 1)
+        plt.subplot(4, 1, 1)
         plt.plot(test_y)
         plt.ylim(-1, 1)
         plt.xlim(0, seq_M)
@@ -122,10 +123,26 @@ if __name__ == '__main__':
                 test_h.reshape(1, feature_size, -1)).float().cuda()
 
             logits = net(inputs, features)
-            probs = F.softmax(logits * c, dim=1).view(channels, -1).cpu().detach().numpy()
+            probs1 = F.softmax(logits, dim=1).transpose(1, 2).view(-1, channels)
+            probs2 = F.softmax(logits * c, dim=1).transpose(1, 2).view(-1, channels)
 
-            plt.subplot(3, 1, 2)
-            plt.imshow(probs, aspect='auto', origin='lower')
+            dist = torch.distributions.Categorical(probs1)
+            samples = dist.sample().float() / (channels - 1) * 2 - 1
+
+            plt.subplot(4, 1, 2)
+            plt.plot(samples.detach().cpu().numpy())
+            plt.xlim(0, seq_M)
+            plt.ylim(-1, 1)
+
+            dist = torch.distributions.Categorical(probs2)
+            samples = dist.sample().float() / (channels - 1) * 2 - 1
+
+            plt.subplot(4, 1, 3)
+            plt.plot(samples.detach().cpu().numpy())
+            plt.xlim(0, seq_M)
+            plt.ylim(-1, 1)
+
+
 
             x_buf = torch.zeros(1, 1, N).cuda()
             h_buf = torch.zeros(1, feature_size, N).cuda()
@@ -136,7 +153,7 @@ if __name__ == '__main__':
                 logits = net(x_buf, h_buf, zeropad=False)
                 _, predict = logits.max(1)
 
-                #sample = predict.float() / (channels - 1) * 2 - 1
+                # sample = predict.float() / (channels - 1) * 2 - 1
                 prob = F.softmax(logits * c, dim=1).view(-1)
                 dist = torch.distributions.Categorical(prob)
                 sample = dist.sample().float() / (channels - 1) * 2 - 1
@@ -145,7 +162,7 @@ if __name__ == '__main__':
                 # img.append(prob.cpu().detach().numpy())
                 x_buf = torch.cat((x_buf[:, :, 1:], sample.view(1, 1, 1)), 2)
 
-            plt.subplot(3, 1, 3)
+            plt.subplot(4, 1, 4)
             # img = np.array(img).T
             # plt.imshow(img, aspect='auto', origin='lower')
             plt.plot(img)
