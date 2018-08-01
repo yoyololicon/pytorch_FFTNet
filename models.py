@@ -1,9 +1,7 @@
 import torch
-from torch import optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-import numpy as np
 from operator import mul
 from functools import reduce
 
@@ -49,7 +47,7 @@ class general_FFTLayer_aux(nn.Module):
 
     def forward(self, x, h):
         if self.stationary:
-            h = h.view(1, -1, 1).expand(x.size(0), -1, -1)
+            h = h.view(1, -1, 1)
             h = self.V_n(h)
         else:
             h = self.V_lr(h)
@@ -107,7 +105,7 @@ class FFTNet_aux(nn.Module):
         return self.layers(x, zeropad=False)
 
 
-class general_FFTNet_aux(nn.Module):
+class general_FFTNet(nn.Module):
     def __init__(self, radixs=[2] * 11, in_channels=1, feature_width=26, channels=256, classes=256, inverse=False,
                  stationary=False):
         super().__init__()
@@ -145,9 +143,3 @@ class general_FFTNet_aux(nn.Module):
         x = self.fc_out(x.transpose(1, 2))
         return x.transpose(1, 2)
 
-
-if __name__ == '__main__':
-    net = general_FFTNet_aux(radixs=[2] + [3] * 5, feature_width=0)
-    y = net(torch.randn(1, 1, 5000))
-    y_hat = y.transpose(1, 2).unsqueeze(-1)
-    print(y.size(), y_hat.size())
