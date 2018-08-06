@@ -66,31 +66,6 @@ def get_wav_and_feature(filename, n_fft=400, hop_length=160, feature_size=26):
     return sr, y, h
 
 
-class CMU_Dataset(Dataset):
-    def __init__(self, filelist, feature_scaler, seq_M=5000, channels=256):
-        self.data_files = filelist
-        self.seq_M = seq_M
-        self.channels = channels
-        self.scaler = feature_scaler
-
-    def __getitem__(self, idx):
-        _, y, h = get_wav_and_feature(self.data_files[idx])
-        y = y[:len(y) // self.seq_M * self.seq_M]
-        h = h[:, :len(y)]
-
-        #y = mu_law_transform(y, self.channels)
-
-        h = self.scaler.transform(h.T).T
-        h = np.roll(h, shift=-1, axis=1)
-
-        t = np.floor((y + 1) / 2 * (self.channels - 1))
-        # y = t / (self.channels - 1) * 2 - 1
-        t = np.roll(t, shift=-1).astype(int)
-        return (y, h, t)
-
-    def __len__(self):
-        return len(self.data_files)
-
 if __name__ == '__main__':
     x = np.random.rand(3, 5)
     print(x)

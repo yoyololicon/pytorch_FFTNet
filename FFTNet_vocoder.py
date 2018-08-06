@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     print('==> Construct Tensor Dataloader...')
     dataset = TensorDataset(train_wav, train_features, train_targets)
-    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)
+    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
 
     print('==> Building model..')
     net = general_FFTNet(radixs, 1, channels, features_size, classes=channels).cuda()

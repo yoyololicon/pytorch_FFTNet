@@ -1,15 +1,10 @@
 import argparse
 import os
-from multiprocessing import cpu_count
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
-from tqdm import tqdm
 from librosa.core import load
 from librosa.feature import mfcc
 # from python_speech_features import mfcc
 from pyworld import dio
 import numpy as np
-from scipy.interpolate import interp1d
 from hparams import hparams
 from utils import zero_padding, enc
 from sklearn.preprocessing import StandardScaler
@@ -37,19 +32,6 @@ def _process_wav(file_list, outfile):
     np.savez(outfile, **data_dict)
 
 
-def build_from_path(in_dir, audio_out_dir, mel_out_dir, num_workers, tqdm=lambda x: x):
-    executor = ProcessPoolExecutor(max_workers=num_workers)
-    futures = []
-    wav_list = os.listdir(in_dir)
-    for wav_path in wav_list:
-        fid = os.path.basename(wav_path).replace('.wav', '.npy')
-        audio_path = os.path.join(audio_out_dir, fid)
-        mel_path = os.path.join(mel_out_dir, fid)
-        futures.append(executor.submit(partial(_process_wav, wav_path, audio_path, mel_path)))
-
-    return [future.result() for future in tqdm(futures)]
-
-
 def calc_stats(npzfile, out_dir):
     scaler = StandardScaler()
     data_dict = np.load(npzfile)
@@ -68,8 +50,8 @@ def preprocess(args):
     in_dir = os.path.join(args.wav_dir)
     out_dir = os.path.join(args.output)
     # print(in_dir, out_dir)
-    train_data = os.path.join(out_dir, 'train')
-    test_data = os.path.join(out_dir, 'test')
+    train_data = os.path.join(out_dir, 'train.npz')
+    test_data = os.path.join(out_dir, 'test.npz')
     os.makedirs(out_dir, exist_ok=True)
 
     files = [os.path.join(in_dir, f) for f in os.listdir(in_dir)]
@@ -85,7 +67,7 @@ def preprocess(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--wav_dir', default='/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav')
+    parser.add_argument('--wav_dir', default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
     parser.add_argument('--output', default='training_data')
     args = parser.parse_args()
     preprocess(args)

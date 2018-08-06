@@ -12,21 +12,24 @@ hparams = tf.contrib.training.HParams(
     winstep=0.01,
     preemphasis=0.97,
     noise_injecting=True,
-    interp_method='interp',
+    interp_method='repeat',
 
     # Training:
     use_cuda=True,
     use_local_condition=True,
     batch_size=5,
-    sample_size=16000,
-    learning_rate=1e-3,
-    training_steps=100000,
+    sample_size=5000,
+    learning_rate=2e-4,
+    training_steps=10000,
     checkpoint_interval=5000,
 
     # Model
     radixs=[2] * 11,
     fft_channels=256,
     quantization_channels=256,
+
+    # Test
+    c=2
 )
 
 
