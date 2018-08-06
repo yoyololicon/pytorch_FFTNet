@@ -69,6 +69,7 @@ class general_FFTNet(nn.Module):
         return category.float() / (self.classes - 1) * 2 - 1
 
     def fast_generate(self, num_samples=None, h=None, c=1):
+        # this method seems only 2~3 times faster
         buf = torch.zeros(1, self.in_channels, self.r_field)
         if next(self.parameters()).is_cuda:
             buf = buf.cuda()
@@ -78,9 +79,8 @@ class general_FFTNet(nn.Module):
         if h is None:
             buf[:, :, -1].uniform_(-1, 1)
             for fft_layer, r, N in zip(self.fft_layers, self.radixs, self.N_seq):
-                buf2 = fft_layer(buf)
                 buf_list.append(buf[:, :, N // r - 1:])
-                buf = buf2
+                buf = fft_layer(buf)
 
             # first sample
             sample = self.conditional_sampling(buf, c)
@@ -99,9 +99,8 @@ class general_FFTNet(nn.Module):
             h = self.padding_layer(h)
             pos = self.r_field + 1
             for fft_layer, r, N in zip(self.fft_layers, self.radixs, self.N_seq):
-                buf2 = fft_layer(buf, h[:, :, :pos])
                 buf_list.append(buf[:, :, N // r - 1:])
-                buf = buf2
+                buf = fft_layer(buf, h[:, :, :pos])
 
             # first sample
             sample = self.conditional_sampling(buf, c)

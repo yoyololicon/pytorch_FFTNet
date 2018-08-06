@@ -31,6 +31,9 @@ def main():
         for batch_idx, (inputs, targets, features) in enumerate(training_loader):
             inputs, targets, features = inputs.cuda(), targets.cuda(), features.cuda()
 
+            if hparams.noise_injecting:
+                inputs += torch.zeros_like(inputs) / hparams.quantization_channels
+
             optimizer.zero_grad()
 
             logits = net(inputs, features)[:, :, 1:]
