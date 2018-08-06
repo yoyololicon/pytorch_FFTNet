@@ -5,31 +5,33 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from tqdm import tqdm
 from librosa.core import load
-from python_speech_features import mfcc
+from librosa.feature import mfcc
+# from python_speech_features import mfcc
+from pyworld import dio
 import numpy as np
 from scipy.interpolate import interp1d
 
 from hparams import hparams
+from utils import zero_padding
 
 
-def _process_wav(wav_path, audio_path, spc_path):
-    wav, sr = load(wav_path, sr=None)
-    spc = mfcc(wav, sr, winlen=hparams.winlen, winstep=hparams.winstep, numcep=hparams.n_mfcc,
-               winfunc=np.hamming)
+def _process_wav(file_list, outfile):
+    data_dict = {}
+    for f in file_list:
+        wav, sr = load(f, sr=None)
 
-    # Align audios and mcc
-    hop_length = int(hparams.frame_shift_ms / 1000 * hparams.sample_rate)
-    length_diff = len(spc) * hop_length - len(wav)
-    wav = wav.reshape(-1, 1)
-    if length_diff > 0:
-        wav = np.pad(wav, [[0, length_diff], [0, 0]], 'constant')
-    elif length_diff < 0:
-        wav = wav[: hop_length * spc.shape[0]]
+        hopsize = int(sr * hparams.winstep)
+        spec = mfcc(wav, sr, n_mfcc=hparams.n_mfcc, n_fft=int(sr * hparams.winlen), hop_length=hopsize)
+        f0, _ = dio(wav.astype(float), sr, f0_floor=hparams.minf0, f0_ceil=hparams.maxf0,
+                    frame_period=hparams.winstep * 1000)
 
-    np.save(audio_path, wav)
-    np.save(spc_path, spc)
-    return (audio_path, spc_path, spc.shape[0])
-
+        # in future may need to check the lenght between spec and f0
+        h = np.vstack((spec, f0))
+        id = os.path.basename(f).replace(".wav", "")
+        print("reading", id, "...")
+        data_dict[id] = wav
+        data_dict[id + "_h"] = h
+    np.savez(outfile, **data_dict)
 
 def build_from_path(in_dir, audio_out_dir, mel_out_dir, num_workers, tqdm=lambda x: x):
     executor = ProcessPoolExecutor(max_workers=num_workers)
@@ -47,23 +49,24 @@ def build_from_path(in_dir, audio_out_dir, mel_out_dir, num_workers, tqdm=lambda
 def preprocess(args):
     in_dir = os.path.join(args.wav_dir)
     out_dir = os.path.join(args.output)
-    audio_out_dir = os.path.join(out_dir, 'audios')
-    mcc_out_dir = os.path.join(out_dir, 'mcc')
+    # print(in_dir, out_dir)
+    train_data = os.path.join(out_dir, 'train')
+    test_data = os.path.join(out_dir, 'test')
     os.makedirs(out_dir, exist_ok=True)
-    os.makedirs(audio_out_dir, exist_ok=True)
-    os.makedirs(mcc_out_dir, exist_ok=True)
-    metadata = build_from_path(in_dir, audio_out_dir, mel_out_dir, args.num_workers, tqdm=tqdm)
-    write_metadata(metadata, out_dir)
 
-    spc_list = find_files(mel_out_dir, "*.npy")
-    calc_stats(spc_list, out_dir)
+    files = [os.path.join(in_dir, f) for f in os.listdir(in_dir)]
+    files.sort()
+    train_files = files[:1032]
+    test_files = files[1032:]
+
+    _process_wav(train_files, train_data)
+    _process_wav(test_files, test_data)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--wav_dir', default='cmu_us_rms_arctic/wav')
+    parser.add_argument('--wav_dir', default='/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav')
     parser.add_argument('--output', default='training_data')
-    parser.add_argument('--num_workers', type=int, default=cpu_count())
     args = parser.parse_args()
     preprocess(args)
 

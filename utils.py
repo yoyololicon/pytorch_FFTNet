@@ -6,13 +6,29 @@ from torch.utils.data import Dataset
 
 import pyworld as pw
 
+
+def zero_padding(x, maxlen, dim=0):
+    diff = maxlen - x.shape[dim]
+    if diff <= 0:
+        return x
+    else:
+        pad_shape = ()
+        for i in range(len(x.shape)):
+            if i != dim:
+                pad_shape += ((0, 0),)
+            else:
+                pad_shape += ((0, diff),)
+
+        return np.pad(x, pad_shape, 'constant')
+
+
 def np_mulaw_encode(x, quantization_channels):
     if x.max() > 1 or x.min() < -1:
         print("mulaw encode: input value out of range.")
         return 1
     mu = float(quantization_channels - 1)
     x_mu = np.sign(x) * np.log1p(mu * np.abs(x)) / np.log1p(mu)
-    x_mu = np.floor((x_mu+1)*mu/2)
+    x_mu = np.floor((x_mu + 1) * mu / 2)
     return x_mu
 
 
@@ -21,7 +37,7 @@ def np_mulaw_decode(y, quantization_channels):
     if y.max() > mu or y.min() < 0:
         print("mulaw decode: input value out of range.")
         return 1
-    y_mu = (y/mu*2)-1
+    y_mu = (y / mu * 2) - 1
     y_mu = np.sign(y) / mu * (np.power(mu + 1, np.abs(y)) - 1)
     return y_mu
 
@@ -59,15 +75,21 @@ class CMU_Dataset(Dataset):
         y = y[:len(y) // self.seq_M * self.seq_M]
         h = h[:, :len(y)]
 
-        y = mu_law_transform(y, self.channels)
+        #y = mu_law_transform(y, self.channels)
 
         h = self.scaler.transform(h.T).T
         h = np.roll(h, shift=-1, axis=1)
 
         t = np.floor((y + 1) / 2 * (self.channels - 1))
-        #y = t / (self.channels - 1) * 2 - 1
+        # y = t / (self.channels - 1) * 2 - 1
         t = np.roll(t, shift=-1).astype(int)
         return (y, h, t)
 
     def __len__(self):
         return len(self.data_files)
+
+if __name__ == '__main__':
+    x = np.random.rand(3, 5)
+    print(x)
+    x = zero_padding(x, 10, 1)
+    print(x.shape, x)

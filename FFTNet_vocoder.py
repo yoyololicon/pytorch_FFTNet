@@ -96,7 +96,7 @@ if __name__ == '__main__':
     enc = transforms.MuLawEncoding(channels)
     dec = transforms.MuLawExpanding(channels)
 
-    train_wav = enc(train_wav) / (channels - 1) * 2 - 1
+    train_wav = enc(train_wav).astype(float) / (channels - 1) * 2 - 1
     train_targets = enc(train_targets)
 
     scaler = StandardScaler()
