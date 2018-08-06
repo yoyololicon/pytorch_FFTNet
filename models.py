@@ -59,11 +59,14 @@ class general_FFTNet(nn.Module):
         x = self.fc_out(x.transpose(1, 2))
         return x.transpose(1, 2)
 
-    def conditional_sampling(self, logits, c=1):
+    def conditional_sampling(self, logits, c):
         out = self.fc_out(logits.transpose(1, 2)).view(-1)
         probs = F.softmax(out * c, dim=0)
         dist = torch.distributions.Categorical(probs)
         return dist.sample()
+
+    def class2float(self, category):
+        return category.float() / (self.classes - 1) * 2 - 1
 
     def fast_generate(self, num_samples=None, h=None, c=1):
         buf = torch.zeros(1, self.in_channels, self.r_field)
@@ -82,7 +85,7 @@ class general_FFTNet(nn.Module):
             # first sample
             sample = self.conditional_sampling(buf, c)
             output_list.append(sample.item())
-            sample = sample.float() / (self.classes - 1) * 2 - 1
+            sample = self.class2float(sample)
 
             for i in range(1, num_samples):
                 for j in range(len(buf_list)):
@@ -91,7 +94,7 @@ class general_FFTNet(nn.Module):
 
                 sample = self.conditional_sampling(sample, c)
                 output_list.append(sample.item())
-                sample = sample.float() / (self.classes - 1) * 2 - 1
+                sample = self.class2float(sample)
         else:
             h = self.padding_layer(h)
             pos = self.r_field + 1
@@ -103,7 +106,7 @@ class general_FFTNet(nn.Module):
             # first sample
             sample = self.conditional_sampling(buf, c)
             output_list.append(sample.item())
-            sample = sample.float() / (self.classes - 1) * 2 - 1
+            sample = self.class2float(sample)
 
             for pos in range(self.r_field + 2, h.size(2) + 1):
                 for j in range(len(buf_list)):
@@ -112,7 +115,7 @@ class general_FFTNet(nn.Module):
 
                 sample = self.conditional_sampling(sample, c)
                 output_list.append(sample.item())
-                sample = sample.float() / (self.classes - 1) * 2 - 1
+                sample = self.class2float(sample)
 
         outputs = torch.Tensor(output_list).view(-1, 1)
         return outputs
