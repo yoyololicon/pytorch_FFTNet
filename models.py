@@ -116,4 +116,3 @@ class general_FFTNet(nn.Module):
 
         outputs = torch.Tensor(output_list).view(-1, 1)
         return outputs
-

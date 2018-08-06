@@ -6,14 +6,22 @@ from torch.utils.data import Dataset
 
 import pyworld as pw
 
-def mu_law_transform(x, quantization_channels):
+def np_mulaw_encode(x, quantization_channels):
+    if x.max() > 1 or x.min() < -1:
+        print("mulaw encode: input value out of range.")
+        return 1
     mu = float(quantization_channels - 1)
     x_mu = np.sign(x) * np.log1p(mu * np.abs(x)) / np.log1p(mu)
+    x_mu = np.floor((x_mu+1)*mu/2)
     return x_mu
 
 
-def inv_mu_law_transform(y, quantization_channels):
+def np_mulaw_decode(y, quantization_channels):
     mu = float(quantization_channels - 1)
+    if y.max() > mu or y.min() < 0:
+        print("mulaw decode: input value out of range.")
+        return 1
+    y_mu = (y/mu*2)-1
     y_mu = np.sign(y) / mu * (np.power(mu + 1, np.abs(y)) - 1)
     return y_mu
 
@@ -57,7 +65,7 @@ class CMU_Dataset(Dataset):
         h = np.roll(h, shift=-1, axis=1)
 
         t = np.floor((y + 1) / 2 * (self.channels - 1))
-        y = t / (self.channels - 1) * 2 - 1
+        #y = t / (self.channels - 1) * 2 - 1
         t = np.roll(t, shift=-1).astype(int)
         return (y, h, t)
 

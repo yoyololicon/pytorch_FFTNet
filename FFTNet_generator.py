@@ -1,5 +1,4 @@
 import torch
-import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -13,13 +12,12 @@ import argparse
 # import matplotlib.pyplot as plt
 
 from models import general_FFTNet
-from utils import inv_mu_law_transform
 
 parser = argparse.ArgumentParser(description='FFTNet audio generation.')
 parser.add_argument('outfile', type=str, help='output file name')
 parser.add_argument('--seq_M', type=int, default=2500, help='training sequence length')
 parser.add_argument('--depth', type=int, default=10, help='model depth. The receptive field will be 2^depth.')
-parser.add_argument('--batch_size', type=int, default=5)
+parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--channels', type=int, default=256, help='quantization channels')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--steps', type=int, default=10000, help='iteration number')
@@ -43,17 +41,17 @@ if __name__ == '__main__':
     generation_time = args.file_size
     filename = args.outfile
 
+    maxlen = 50000
     print('==> Downloading YesNo Dataset..')
-    transform = transforms.Compose([transforms.Scale(), transforms.MuLawEncoding(quantization_channels=channels)])
+    transform = transforms.Compose(
+        [transforms.Scale(),
+         transforms.PadTrim(maxlen),
+         transforms.MuLawEncoding(quantization_channels=channels)])
     data = torchaudio.datasets.YESNO('./data', download=True, transform=transform)
-    data_loader = DataLoader(data, batch_size=1, num_workers=2, shuffle=True)
+    data_loader = DataLoader(data, batch_size=batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
     net = general_FFTNet(radixs, 1, channels, classes=channels).cuda()
-    net = torch.nn.DataParallel(net)
-    cudnn.benchmark = True
-
-    print(sum(p.numel() for p in net.parameters()), "of parameters.")
 
     optimizer = optim.Adam(net.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss()
@@ -62,24 +60,43 @@ if __name__ == '__main__':
     a = datetime.now().replace(microsecond=0)
 
     step = 0
+    seq_idx = torch.arange(seq_M).view(1, -1)
     while step < steps:
         for batch_idx, (inputs, _) in enumerate(data_loader):
-            inputs = inputs.view(-1)
-            targets = torch.cat((inputs[1:], inputs[0:1]))
+            inputs = inputs.transpose(1, 2)
+            targets = torch.cat((inputs[:, 0, 1:], inputs[:, 0, 0:1]), 1)
+            inputs = inputs.float() / (channels - 1) * 2 - 1
 
-            inputs, targets = inputs[:inputs.size(0) // seq_M * seq_M], targets[:targets.size(0) // seq_M * seq_M]
-
-            inputs, targets = inputs.view(-1, 1, seq_M).float().cuda(), targets.view(-1, seq_M).long().cuda()
-            inputs = inputs / (channels - 1) * 2 - 1
+            # random sample segments from batch
+            randn_idx = torch.LongTensor(inputs.size(0)).random_(maxlen - seq_M)
+            randn_seq_idx = seq_idx.expand(inputs.size(0), -1) + randn_idx.unsqueeze(-1)
+            inputs = torch.gather(inputs, 2, randn_seq_idx.view(-1, 1, seq_M)).float().cuda()
+            targets = torch.gather(targets, 1, randn_seq_idx).long().cuda()
 
             # inject guassion noise
             inputs += torch.randn_like(inputs) / channels
 
-            for i in range(0, inputs.size(0), batch_size):
+            optimizer.zero_grad()
+
+            logits = net(inputs)[:, :, 1:]
+            loss = criterion(logits.unsqueeze(-1), targets.unsqueeze(-1))
+            loss.backward()
+            optimizer.step()
+
+            print(step, "{:.4f}".format(loss.item()))
+            step += 1
+            if step > steps:
+                break
+
+            """
+            x_sequences = list(torch.split(inputs, seq_M, 2))
+            y_sequences = list(torch.split(targets, seq_M, 1))
+            for x, y in zip(x_sequences, y_sequences):
+                x, y = x.cuda(), y.cuda()
                 optimizer.zero_grad()
 
-                logits = net(inputs[i:i + batch_size])[:, :, 1:]
-                loss = criterion(logits.unsqueeze(-1), targets[i:i + batch_size].unsqueeze(-1))
+                logits = net(x)[:, :, 1:]
+                loss = criterion(logits.unsqueeze(-1), y.unsqueeze(-1))
                 loss.backward()
                 optimizer.step()
 
@@ -87,23 +104,17 @@ if __name__ == '__main__':
                 step += 1
                 if step > steps:
                     break
+            """
 
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     print("Start to generate some noise...")
-    a = datetime.now().replace(microsecond=0)
-    buffer = torch.zeros(1, 1, N).cuda()
-    buffer[:, :, -1].uniform_(-1, 1)
-    samples = []
-    for i in range(int(generation_time * sr)):
-        logit = net(buffer, zeropad=False)
-        probs = F.softmax(logit * c, dim=1).view(-1)
-        dist = torch.distributions.Categorical(probs)
-        sample = dist.sample().float() / (channels - 1) * 2 - 1
-
-        buffer = torch.cat((buffer[:, :, 1:], sample.view(1, 1, 1)), 2)
-        samples.append(sample.item())
-
-    generation = inv_mu_law_transform(np.array(samples), channels)
-    torchaudio.save(filename, torch.from_numpy(generation).view(-1, 1), sr)
-    print("Generation time cost:", datetime.now().replace(microsecond=0) - a)
+    net = net.cpu()
+    net.eval()
+    with torch.no_grad():
+        a = datetime.now().replace(microsecond=0)
+        generation = net.fast_generate(int(sr * generation_time), c=c)
+        decoder = transforms.MuLawExpanding(channels)
+        generation = decoder(generation)
+        torchaudio.save(filename, generation, sr)
+        print("Generation time cost:", datetime.now().replace(microsecond=0) - a)

@@ -16,7 +16,6 @@ import argparse
 # import matplotlib.pyplot as plt
 
 from models import general_FFTNet
-from utils import inv_mu_law_transform, mu_law_transform
 from python_speech_features import mfcc
 from pyworld import dio, harvest
 
@@ -27,7 +26,7 @@ parser.add_argument('--depth', type=int, default=10, help='model depth. The rece
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--channels', type=int, default=256, help='quantization channels')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-parser.add_argument('--steps', type=int, default=50000, help='iteration number')
+parser.add_argument('--steps', type=int, default=80000, help='iteration number')
 parser.add_argument('-c', type=float, default=2., help='a constant multiply before softmax layer in generation')
 parser.add_argument('--file_size', type=float, default=5., help='generated wav file size (in seconds)')
 parser.add_argument('--feature_size', type=int, default=26, help='generated wav file size (in seconds)')
@@ -94,8 +93,11 @@ if __name__ == '__main__':
     train_features = np.vstack(train_features)
     train_targets = np.concatenate(train_targets)
 
-    train_wav = mu_law_transform(train_wav, channels)
-    train_targets = np.floor((mu_law_transform(train_targets, channels) + 1) / 2 * (channels - 1))
+    enc = transforms.MuLawEncoding(channels)
+    dec = transforms.MuLawExpanding(channels)
+
+    train_wav = enc(train_wav) / (channels - 1) * 2 - 1
+    train_targets = enc(train_targets)
 
     scaler = StandardScaler()
     train_features = scaler.fit_transform(train_features)
@@ -115,12 +117,10 @@ if __name__ == '__main__':
 
     print('==> Construct Tensor Dataloader...')
     dataset = TensorDataset(train_wav, train_features, train_targets)
-    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
+    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
-    net = general_FFTNet(radixs, 1, channels, features_size, classes=channels)
-    net = torch.nn.DataParallel(net.cuda())
-    cudnn.benchmark = True
+    net = general_FFTNet(radixs, 1, channels, features_size, classes=channels).cuda()
 
     print(sum(p.numel() for p in net.parameters()), "of parameters.")
 
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     while step < steps:
         for batch_idx, (inputs, features, targets) in enumerate(data_loader):
             # inject guassion noise
-            #inputs += torch.randn_like(inputs) / channels
+            inputs += torch.randn_like(inputs) / channels
             inputs, features, targets = inputs.cuda(), features.cuda(), targets.cuda()
 
             optimizer.zero_grad()
@@ -152,22 +152,12 @@ if __name__ == '__main__':
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     print("Start to generate some noise...")
-    a = datetime.now().replace(microsecond=0)
-    x_buffer = torch.zeros(1, 1, N).cuda()
-    h_buffer = torch.zeros(1, features_size, N).cuda()
-
-    samples = []
-    for i in range(test_features.size(2)):
-        h_buffer = torch.cat((h_buffer[:, :, 1:], test_features[:, :, i, None]), 2)
-
-        logit = net(x_buffer, h_buffer, zeropad=False)
-        probs = F.softmax(logit, dim=1).view(-1)
-        dist = torch.distributions.Categorical(probs)
-        sample = dist.sample().float() / (channels - 1) * 2 - 1
-
-        x_buffer = torch.cat((x_buffer[:, :, 1:], sample.view(1, 1, 1)), 2)
-        samples.append(sample.item())
-
-    generation = inv_mu_law_transform(np.array(samples), channels)
-    torchaudio.save(filename, torch.from_numpy(generation).view(-1, 1), sr)
-    print("Generation time cost:", datetime.now().replace(microsecond=0) - a)
+    net = net.cpu()
+    net.eval()
+    with torch.no_grad():
+        a = datetime.now().replace(microsecond=0)
+        generation = net.fast_generate(h=test_features, c=c)
+        generation = dec(generation)
+        torchaudio.save(filename, generation, sr)
+        cost = datetime.now().replace(microsecond=0) - a
+        print("Generation time cost:", cost, ". Speed:", generation.size(0)/cost.total_seconds(), "samples/sec.")
