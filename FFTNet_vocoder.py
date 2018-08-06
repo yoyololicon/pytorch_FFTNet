@@ -26,7 +26,7 @@ parser.add_argument('--depth', type=int, default=10, help='model depth. The rece
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--channels', type=int, default=256, help='quantization channels')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-parser.add_argument('--steps', type=int, default=80000, help='iteration number')
+parser.add_argument('--steps', type=int, default=50000, help='iteration number')
 parser.add_argument('-c', type=float, default=2., help='a constant multiply before softmax layer in generation')
 parser.add_argument('--file_size', type=float, default=5., help='generated wav file size (in seconds)')
 parser.add_argument('--feature_size', type=int, default=26, help='generated wav file size (in seconds)')
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     print("Start to generate some noise...")
-    net = net.cpu()
+    #net = net.cpu()
     net.eval()
     with torch.no_grad():
         a = datetime.now().replace(microsecond=0)

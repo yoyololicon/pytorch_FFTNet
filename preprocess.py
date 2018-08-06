@@ -10,9 +10,9 @@ from librosa.feature import mfcc
 from pyworld import dio
 import numpy as np
 from scipy.interpolate import interp1d
-
 from hparams import hparams
-from utils import zero_padding
+from utils import zero_padding, enc
+from sklearn.preprocessing import StandardScaler
 
 
 def _process_wav(file_list, outfile):
@@ -27,11 +27,15 @@ def _process_wav(file_list, outfile):
 
         # in future may need to check the lenght between spec and f0
         h = np.vstack((spec, f0))
+        # mulaw encode
+        wav = enc(wav).astype(np.uint8)
+
         id = os.path.basename(f).replace(".wav", "")
         print("reading", id, "...")
         data_dict[id] = wav
         data_dict[id + "_h"] = h
     np.savez(outfile, **data_dict)
+
 
 def build_from_path(in_dir, audio_out_dir, mel_out_dir, num_workers, tqdm=lambda x: x):
     executor = ProcessPoolExecutor(max_workers=num_workers)
@@ -44,6 +48,20 @@ def build_from_path(in_dir, audio_out_dir, mel_out_dir, num_workers, tqdm=lambda
         futures.append(executor.submit(partial(_process_wav, wav_path, audio_path, mel_path)))
 
     return [future.result() for future in tqdm(futures)]
+
+
+def calc_stats(npzfile, out_dir):
+    scaler = StandardScaler()
+    data_dict = np.load(npzfile)
+    for name, x in data_dict.items():
+        if name[-2:] == '_h':
+            scaler.partial_fit(x.T)
+
+    mean = scaler.mean_
+    scale = scaler.scale_
+
+    np.save(os.path.join(out_dir, 'mean'), np.float32(mean))
+    np.save(os.path.join(out_dir, 'scale'), np.float32(scale))
 
 
 def preprocess(args):
@@ -62,6 +80,8 @@ def preprocess(args):
     _process_wav(train_files, train_data)
     _process_wav(test_files, test_data)
 
+    calc_stats(train_data, out_dir)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -73,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # calc_stats("training_data/train.npz", "training_data")

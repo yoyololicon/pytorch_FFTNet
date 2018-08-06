@@ -3,9 +3,12 @@ from librosa.feature import mfcc
 from librosa.core import load
 from scipy.interpolate import interp1d
 from torch.utils.data import Dataset
-
+from torchaudio.transforms import MuLawEncoding, MuLawExpanding
+from hparams import hparams
 import pyworld as pw
 
+enc = MuLawEncoding(hparams.quantization_channels)
+dec = MuLawExpanding(hparams.quantization_channels)
 
 def zero_padding(x, maxlen, dim=0):
     diff = maxlen - x.shape[dim]
