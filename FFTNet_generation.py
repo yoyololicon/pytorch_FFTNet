@@ -49,8 +49,8 @@ if __name__ == '__main__':
     data_loader = DataLoader(data, batch_size=1, num_workers=2, shuffle=True)
 
     print('==> Building model..')
-    net = general_FFTNet(radixs, 1, 0, channels, classes=channels)
-    net = torch.nn.DataParallel(net.cuda())
+    net = general_FFTNet(radixs, 1, channels, classes=channels).cuda()
+    net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
     print(sum(p.numel() for p in net.parameters()), "of parameters.")

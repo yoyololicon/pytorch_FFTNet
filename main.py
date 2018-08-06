@@ -59,7 +59,7 @@ dataset = CMU_Dataset(train_files, scaler, seq_M, channels)
 loader = DataLoader(dataset, num_workers=0, shuffle=True)
 
 print('==> Building model..')
-net = general_FFTNet_aux(radixs=radixs, feature_width=feature_size, channels=channels, classes=channels).cuda()
+net = general_FFTNet(radixs=radixs, aux_channels=feature_size, channels=channels, classes=channels).cuda()
 net = torch.nn.DataParallel(net)
 cudnn.bscalerhmark = True
 
