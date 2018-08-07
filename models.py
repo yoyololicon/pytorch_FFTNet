@@ -60,18 +60,26 @@ class general_FFTNet(nn.Module):
         x = self.fc_out(x.transpose(1, 2))
         return x.transpose(1, 2)
 
-    def conditional_sampling(self, logits, c):
-        out = self.fc_out(logits.transpose(1, 2)).view(-1)
-        probs = F.softmax(out * c, dim=0)
+    def conditional_sampling(self, logits):
+        probs = F.softmax(logits, dim=0)
         dist = torch.distributions.Categorical(probs)
         return dist.sample()
+
+    def argmax(self, logits):
+        _, sample = logits.max(0)
+        return sample
 
     def class2float(self, category):
         return category.float() / (self.classes - 1) * 2 - 1
 
-    def fast_generate(self, num_samples=None, h=None, c=1):
+    def fast_generate(self, num_samples=None, h=None, c=1, method='sampling'):
         # this method seems only 2~3 times faster
         buf = self.init_buffer.fill_(0.)
+
+        if method == 'argmax':
+            predict_fn = self.argmax
+        else:
+            predict_fn = self.conditional_sampling
 
         output_list = []
         buf_list = []
@@ -82,7 +90,8 @@ class general_FFTNet(nn.Module):
                 buf = fft_layer(buf)
 
             # first sample
-            sample = self.conditional_sampling(buf, c)
+            logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
+            sample = predict_fn(logits)
             output_list.append(sample.item())
             sample = self.class2float(sample)
 
@@ -91,7 +100,8 @@ class general_FFTNet(nn.Module):
                     torch.cat((buf_list[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=buf_list[j])
                     sample = self.fft_layers[j](buf_list[j])
 
-                sample = self.conditional_sampling(sample, c)
+                logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
+                sample = predict_fn(logits)
                 output_list.append(sample.item())
                 sample = self.class2float(sample)
         else:
@@ -102,7 +112,8 @@ class general_FFTNet(nn.Module):
                 buf = fft_layer(buf, h[:, :, :pos])
 
             # first sample
-            sample = self.conditional_sampling(buf, c)
+            logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
+            sample = predict_fn(logits)
             output_list.append(sample.item())
             sample = self.class2float(sample)
 
@@ -111,7 +122,8 @@ class general_FFTNet(nn.Module):
                     torch.cat((buf_list[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=buf_list[j])
                     sample = self.fft_layers[j](buf_list[j], h[:, :, :pos])
 
-                sample = self.conditional_sampling(sample, c)
+                logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
+                sample = predict_fn(logits)
                 output_list.append(sample.item())
                 sample = self.class2float(sample)
 
