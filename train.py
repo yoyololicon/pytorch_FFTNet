@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
+import torch.backends.cudnn as cudnn
 import argparse
+import os
 
 from preprocess import preprocess
 from models import general_FFTNet
@@ -50,6 +52,8 @@ def main():
 
     if torch.cuda.device_count() > 1:
         net = torch.nn.DataParallel(net)
+    if device == 'cuda':
+        cudnn.benchmark = True
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
@@ -79,6 +83,8 @@ def main():
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     net = net.module if isinstance(net, torch.nn.DataParallel) else net
+
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
     torch.save(net, args.checkpoint_dir)
     print("Model saved to", args.checkpoint_dir)
 
