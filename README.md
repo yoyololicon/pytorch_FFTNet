@@ -14,12 +14,23 @@ pip install -r requirements.txt
 
 ```
 python train.py \
-    --preprocess
-    --wav_dir your_downloaded_wav_dir
-    --data_dir preprocessed_feature_dir
-    --model_file saved_model_name
-    
+    --preprocess \
+    --wav_dir your_downloaded_wav_dir \
+    --data_dir preprocessed_feature_dir \
+    --model_file saved_model_name \
 ```
 
 [FFTNet_generator](FFTNet_generator.py) and [FFTNet_vocoder](FFTNet_vocoder.py) are two files I used to test the model 
 workability using torchaudio yesno dataset.
+
+## TODO
+
+- [ ] Add evaluation/generation/decode on test dataset.
+- [ ] Implement voiced/unvoiced conditional sampling.
+- [ ] Post-synthesis denoising.
+
+## Notes
+
+* I combine two 1x1 convolution kernel to one 1x2 dilated kernel.
+This can remove redundant bias parameters and accelerate total speed.
+* Some details are differ from the paper, like the learning rate, I find it hard to converge with value 0.001.
