@@ -64,5 +64,7 @@ class CMU_Dataset(Dataset):
             return torch.from_numpy(audio).float().view(1, -1), torch.from_numpy(target).long(), torch.from_numpy(
                 local_condition).float()
         else:
+            name_code = [ord(c) for c in name]
             # the batch size should be 1 in test mode
-            return torch.from_numpy(audio).float().view(1, -1), torch.from_numpy(local_condition).float()
+            return torch.LongTensor(name_code), torch.from_numpy(audio).long(), torch.from_numpy(
+                local_condition).float()

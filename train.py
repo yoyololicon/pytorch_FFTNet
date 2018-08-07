@@ -5,18 +5,20 @@ import argparse
 from models import general_FFTNet
 from dataset import CMU_Dataset
 from hparams import hparams
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='FFTNet vocoder training.')
-parser.add_argument('--dir', type=str, default='training_data')
+parser.add_argument('--data_dir', type=str, default='training_data')
+parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
+                    help='Directory to save checkpoints.')
 
 
 def main():
-    print('==> Loading Dataset..')
-    training_dataset = CMU_Dataset("training_data")
-    training_loader = DataLoader(training_dataset, batch_size=hparams.batch_size, num_workers=4, shuffle=True)
+    args = parser.parse_args()
 
-    test_dataset = CMU_Dataset("training_data", False)
-    test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4, shuffle=False)
+    print('==> Loading Dataset..')
+    training_dataset = CMU_Dataset(args.data_dir)
+    training_loader = DataLoader(training_dataset, batch_size=hparams.batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
     net = general_FFTNet(radixs=hparams.radixs, aux_channels=hparams.n_mfcc + 1, channels=hparams.fft_channels,
@@ -26,13 +28,14 @@ def main():
     optimizer = torch.optim.Adam(net.parameters(), lr=hparams.learning_rate)
 
     print("Start Training.")
+    a = datetime.now().replace(microsecond=0)
     global_step = 0
     while global_step < hparams.training_steps:
         for batch_idx, (inputs, targets, features) in enumerate(training_loader):
             inputs, targets, features = inputs.cuda(), targets.cuda(), features.cuda()
 
             if hparams.noise_injecting:
-                inputs += torch.zeros_like(inputs) / hparams.quantization_channels
+                inputs += torch.randn_like(inputs) / hparams.quantization_channels
 
             optimizer.zero_grad()
 
@@ -45,6 +48,8 @@ def main():
             global_step += 1
             if global_step > hparams.training_steps:
                 break
+
+    print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     """
     print("Evaluating...")
