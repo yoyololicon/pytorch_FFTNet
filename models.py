@@ -46,6 +46,7 @@ class general_FFTNet(nn.Module):
             in_channels = channels
         self.fc_out = nn.Linear(channels, classes)
         self.padding_layer = nn.ConstantPad1d((self.r_field, 0), 0.)
+        self.init_buffer = torch.empty(1, self.in_channels, self.r_field).float()
 
     def forward(self, x, h=None, zeropad=True):
         if zeropad:
@@ -70,9 +71,7 @@ class general_FFTNet(nn.Module):
 
     def fast_generate(self, num_samples=None, h=None, c=1):
         # this method seems only 2~3 times faster
-        buf = torch.zeros(1, self.in_channels, self.r_field)
-        if next(self.parameters()).is_cuda:
-            buf = buf.cuda()
+        buf = self.init_buffer.fill_(0.)
 
         output_list = []
         buf_list = []

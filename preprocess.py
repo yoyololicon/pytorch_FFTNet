@@ -10,17 +10,17 @@ from utils import zero_padding, enc
 from sklearn.preprocessing import StandardScaler
 
 
-def _process_wav(file_list, outfile):
+def _process_wav(file_list, outfile, winlen, winstep, n_mfcc, minf0, maxf0):
     data_dict = {}
     for f in file_list:
         wav, sr = load(f, sr=None)
 
-        hopsize = int(sr * hparams.winstep)
-        spec = mfcc(wav, sr, n_mfcc=hparams.n_mfcc, n_fft=int(sr * hparams.winlen), hop_length=hopsize)
-        f0, _ = dio(wav.astype(float), sr, f0_floor=hparams.minf0, f0_ceil=hparams.maxf0,
+        hopsize = int(sr * winstep)
+        spec = mfcc(wav, sr, n_mfcc=n_mfcc, n_fft=int(sr * winlen), hop_length=hopsize)
+        f0, _ = dio(wav.astype(float), sr, f0_floor=minf0, f0_ceil=maxf0,
                     frame_period=hparams.winstep * 1000)
 
-        # in future may need to check the lenght between spec and f0
+        # in future may need to check the length between spec and f0
         h = np.vstack((spec, f0))
         # mulaw encode
         wav = enc(wav).astype(np.uint8)
@@ -42,13 +42,12 @@ def calc_stats(npzfile, out_dir):
     mean = scaler.mean_
     scale = scaler.scale_
 
-    np.save(os.path.join(out_dir, 'mean'), np.float32(mean))
-    np.save(os.path.join(out_dir, 'scale'), np.float32(scale))
+    np.savez(os.path.join(out_dir, 'scaler.npz'), mean=np.float32(mean), scale=np.float32(scale))
 
 
-def preprocess(args):
-    in_dir = os.path.join(args.wav_dir)
-    out_dir = os.path.join(args.output)
+def preprocess(wav_dir, output, **kwargs):
+    in_dir = os.path.join(wav_dir)
+    out_dir = os.path.join(output)
     # print(in_dir, out_dir)
     train_data = os.path.join(out_dir, 'train.npz')
     test_data = os.path.join(out_dir, 'test.npz')
@@ -59,8 +58,8 @@ def preprocess(args):
     train_files = files[:1032]
     test_files = files[1032:]
 
-    _process_wav(train_files, train_data)
-    _process_wav(test_files, test_data)
+    _process_wav(train_files, train_data, **kwargs)
+    _process_wav(test_files, test_data, **kwargs)
 
     calc_stats(train_data, out_dir)
 
@@ -69,8 +68,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wav_dir', default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
     parser.add_argument('--output', default='training_data')
-    args = parser.parse_args()
-    preprocess(args)
+    #args = parser.parse_args()
+    #preprocess(args)
 
 
 if __name__ == "__main__":

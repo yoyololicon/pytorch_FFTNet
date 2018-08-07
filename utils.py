@@ -1,9 +1,11 @@
 import numpy as np
 from torchaudio.transforms import MuLawEncoding, MuLawExpanding
-from hparams import hparams
 
-enc = MuLawEncoding(hparams.quantization_channels)
-dec = MuLawExpanding(hparams.quantization_channels)
+def encoder(quantization_channels):
+    return MuLawEncoding(quantization_channels)
+
+def decoder(quantization_channels):
+    return MuLawExpanding(quantization_channels)
 
 def zero_padding(x, maxlen, dim=0):
     diff = maxlen - x.shape[dim]
