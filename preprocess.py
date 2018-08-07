@@ -1,24 +1,23 @@
-import argparse
 import os
 from librosa.core import load
 from librosa.feature import mfcc
 # from python_speech_features import mfcc
 from pyworld import dio
 import numpy as np
-from hparams import hparams
-from utils import zero_padding, enc
+from utils import zero_padding, encoder
 from sklearn.preprocessing import StandardScaler
 
 
-def _process_wav(file_list, outfile, winlen, winstep, n_mfcc, minf0, maxf0):
+def _process_wav(file_list, outfile, winlen, winstep, n_mfcc, minf0, maxf0, q_channels):
     data_dict = {}
+    enc = encoder(q_channels)
     for f in file_list:
         wav, sr = load(f, sr=None)
 
         hopsize = int(sr * winstep)
         spec = mfcc(wav, sr, n_mfcc=n_mfcc, n_fft=int(sr * winlen), hop_length=hopsize)
         f0, _ = dio(wav.astype(float), sr, f0_floor=minf0, f0_ceil=maxf0,
-                    frame_period=hparams.winstep * 1000)
+                    frame_period=winstep * 1000)
 
         # in future may need to check the length between spec and f0
         h = np.vstack((spec, f0))
@@ -63,15 +62,3 @@ def preprocess(wav_dir, output, **kwargs):
 
     calc_stats(train_data, out_dir)
 
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--wav_dir', default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
-    parser.add_argument('--output', default='training_data')
-    #args = parser.parse_args()
-    #preprocess(args)
-
-
-if __name__ == "__main__":
-    main()
-    # calc_stats("training_data/train.npz", "training_data")

@@ -1,6 +1,5 @@
 from torch.utils.data import Dataset
 import torch
-from hparams import hparams
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -11,19 +10,24 @@ from utils import zero_padding
 class CMU_Dataset(Dataset):
     def __init__(self,
                  folder,
+                 sample_size,
+                 quantization_channels,
+                 hopsize,
+                 interp_method,
                  train=True):
         self.train = train
-        self.sample_size = hparams.sample_size
-        self.channels = hparams.quantization_channels
-        self.hopsize = int(hparams.sample_rate * hparams.winstep)
-        self.interp_method = hparams.interp_method
+        self.sample_size = sample_size
+        self.channels = quantization_channels
+        self.hopsize = hopsize
+        self.interp_method = interp_method
         if train:
             npzfile = os.path.join(folder, "train.npz")
         else:
             npzfile = os.path.join(folder, "test.npz")
         scaler = StandardScaler()
-        scaler.mean_ = np.load(os.path.join(folder, 'mean.npy'))
-        scaler.scale_ = np.load(os.path.join(folder, 'scale.npy'))
+        scaler_info = np.load(os.path.join(folder, 'scaler.npz'))
+        scaler.mean_ = scaler_info['mean']
+        scaler.scale_ = scaler_info['scale']
         self.transform_fn = scaler.transform
 
         self.names_list = []
@@ -53,13 +57,16 @@ class CMU_Dataset(Dataset):
             audio = audio[rand_pos:rand_pos + self.sample_size].astype(float) / (self.channels - 1) * 2 - 1
 
             # interpolation
-            if self.interp_method == 'interp':
+            if self.interp_method == 'linear':
                 x = np.arange(local_condition.shape[1]) * self.hopsize
                 f = interp1d(x, local_condition, copy=False, axis=1)
                 local_condition = f(np.arange(rand_pos + 1, rand_pos + 1 + self.sample_size))
             elif self.interp_method == 'repeat':
                 local_condition = np.repeat(local_condition, self.hopsize, axis=1)
                 local_condition = local_condition[:, rand_pos + 1:rand_pos + 1 + self.sample_size]
+            else:
+                print("interpolation method", self.interp_method, "is not implemented.")
+                exit(1)
 
             return torch.from_numpy(audio).float().view(1, -1), torch.from_numpy(target).long(), torch.from_numpy(
                 local_condition).float()
