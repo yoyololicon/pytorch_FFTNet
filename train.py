@@ -27,6 +27,7 @@ parser.add_argument('--batch_size', type=int, default=5)
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--steps', type=int, default=100000, help='iteration number')
 parser.add_argument('--noise_injecting', type=bool, default=True)
+parser.add_argument('--model_file', type=str, default='fftnet_model.pth')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
                     help='Directory to save checkpoints.')
 
@@ -84,9 +85,8 @@ def main():
 
     net = net.module if isinstance(net, torch.nn.DataParallel) else net
 
-    os.makedirs(args.checkpoint_dir, exist_ok=True)
-    torch.save(net, args.checkpoint_dir)
-    print("Model saved to", args.checkpoint_dir)
+    torch.save(net, args.model_file)
+    print("Model saved to", args.model_file)
 
 
 if __name__ == '__main__':

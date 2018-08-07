@@ -1,0 +1,6 @@
+torch
+numpy
+sklearn
+scipy
+librosa
+pyworld
