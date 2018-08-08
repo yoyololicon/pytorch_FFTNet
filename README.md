@@ -33,4 +33,4 @@ workability using torchaudio yesno dataset.
 
 * I combine two 1x1 convolution kernel to one 1x2 dilated kernel.
 This can remove redundant bias parameters and accelerate total speed.
-* Some details are differ from the paper, like the learning rate, I find it hard to converge with value 0.001.
+* Some details are differ from the paper..

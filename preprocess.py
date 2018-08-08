@@ -5,7 +5,7 @@ from librosa.feature import mfcc
 import pyworld as pw
 import pysptk as sptk
 import numpy as np
-from utils import zero_padding, encoder
+from utils import zero_padding, encoder, get_mcc_and_f0
 from sklearn.preprocessing import StandardScaler
 
 
@@ -19,17 +19,7 @@ def _process_wav(file_list, outfile, winlen, winstep, n_mcep, mcep_alpha, minf0,
         # spec = mfcc(wav, sr, n_mfcc=n_mfcc, n_fft=int(sr * winlen), hop_length=hopsize)
 
         x = wav.astype(float)
-        # in future may change to harvest
-        f0, t = pw.dio(x, sr, f0_floor=minf0, f0_ceil=maxf0, frame_period=winstep * 1000)   # can't adjust window size
-        f0 = pw.stonemask(x, f0, t, sr)
-        spec = pw.cheaptrick(x, f0, t, sr, fft_size=int(sr * winlen))
-        if spec.min() == 0:
-            # prevent overflow in the following log(x)
-            spec[np.where(spec == 0)] = sys.float_info.min
-        mcep = sptk.sp2mc(spec, n_mcep - 1, mcep_alpha)
-
-        # in future may need to check the length between spec and f0
-        h = np.vstack((mcep.T, f0))
+        h = get_mcc_and_f0(x, sr, winlen, minf0, maxf0, winstep * 1000, n_mcep, mcep_alpha)
         # mulaw encode
         wav = enc(wav).astype(np.uint8)
 
