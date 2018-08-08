@@ -17,7 +17,8 @@ import argparse
 
 from models import general_FFTNet
 from python_speech_features import mfcc
-from pyworld import dio, harvest
+import pyworld as pw
+import pysptk as sptk
 
 parser = argparse.ArgumentParser(description='FFTNet vocoder.')
 parser.add_argument('outfile', type=str, help='output file name')
@@ -64,15 +65,14 @@ if __name__ == '__main__':
         inputs = inputs.view(-1).numpy()
         targets = np.roll(inputs, shift=-1)
 
-        h = mfcc(inputs, sr, winlen=winlen, winstep=winstep, numcep=features_size - 1, winfunc=np.hamming)
+        #h = mfcc(inputs, sr, winlen=winlen, winstep=winstep, numcep=features_size - 1, winfunc=np.hamming)
+        x = inputs.astype(float)
+        f0, t = pw.dio(x, sr, f0_floor=40, f0_ceil=500, frame_period=winstep * 1000)
+        f0 = pw.stonemask(x, f0, t, sr)
+        spc = pw.cheaptrick(x, f0, t, sr)
+        mcep = sptk.sp2mc(spc, features_size-2, 0.31)
 
-        f0, _ = dio(inputs.astype(float), sr, f0_floor=40, f0_ceil=500, frame_period=winstep * 1000)
-
-        if len(f0) > h.shape[0]:
-            f0 = f0[:h.shape[0]]
-        elif h.shape[0] > len(f0):
-            h = h[:len(f0)]
-        h = np.hstack((h, f0[:, None]))
+        h = np.hstack((mcep, f0[:, None]))
 
         # interpolation
         x = np.arange(h.shape[0]) * winstep * sr

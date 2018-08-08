@@ -13,7 +13,11 @@ parser = argparse.ArgumentParser(description='FFTNet vocoder training.')
 parser.add_argument('--preprocess', action='store_true')
 parser.add_argument('--wav_dir', type=str, default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
 parser.add_argument('--data_dir', type=str, default='training_data')
-parser.add_argument('--num_mfcc', type=int, default=25, help='number of mfcc coefficients')
+parser.add_argument('--num_mcep', type=int, default=25, help='number of mcc coefficients')
+parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
+                                                                   '16khz: 0.42,'
+                                                                   '10khz: 0.35,'
+                                                                   '8khz: 0.31.')
 parser.add_argument('--window_length', type=float, default=0.025)
 parser.add_argument('--window_step', type=float, default=0.01)
 parser.add_argument('--minimum_f0', type=float, default=40)
@@ -39,7 +43,8 @@ def main():
     if args.preprocess:
         print('==> Preprocessing data ...')
         preprocess(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
-                   n_mfcc=args.num_mfcc, minf0=args.minimum_f0, maxf0=args.maximum_f0, q_channels=args.q_channels)
+                   n_mcep=args.num_mcep, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0, maxf0=args.maximum_f0,
+                   q_channels=args.q_channels)
 
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
@@ -48,7 +53,7 @@ def main():
 
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    net = general_FFTNet(radixs=args.radixs, aux_channels=args.num_mfcc + 1, channels=args.fft_channels,
+    net = general_FFTNet(radixs=args.radixs, aux_channels=args.num_mcep + 1, channels=args.fft_channels,
                          classes=args.q_channels).to(device)
 
     if torch.cuda.device_count() > 1:

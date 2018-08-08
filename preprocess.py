@@ -1,26 +1,35 @@
 import os
+import sys
 from librosa.core import load
 from librosa.feature import mfcc
-# from python_speech_features import mfcc
-from pyworld import dio
+import pyworld as pw
+import pysptk as sptk
 import numpy as np
 from utils import zero_padding, encoder
 from sklearn.preprocessing import StandardScaler
 
 
-def _process_wav(file_list, outfile, winlen, winstep, n_mfcc, minf0, maxf0, q_channels):
+def _process_wav(file_list, outfile, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, q_channels):
     data_dict = {}
     enc = encoder(q_channels)
     for f in file_list:
         wav, sr = load(f, sr=None)
 
-        hopsize = int(sr * winstep)
-        spec = mfcc(wav, sr, n_mfcc=n_mfcc, n_fft=int(sr * winlen), hop_length=hopsize)
-        f0, _ = dio(wav.astype(float), sr, f0_floor=minf0, f0_ceil=maxf0,
-                    frame_period=winstep * 1000)
+        # hopsize = int(sr * winstep)
+        # spec = mfcc(wav, sr, n_mfcc=n_mfcc, n_fft=int(sr * winlen), hop_length=hopsize)
+
+        x = wav.astype(float)
+        # in future may change to harvest
+        f0, t = pw.dio(x, sr, f0_floor=minf0, f0_ceil=maxf0, frame_period=winstep * 1000)   # can't adjust window size
+        f0 = pw.stonemask(x, f0, t, sr)
+        spec = pw.cheaptrick(x, f0, t, sr, fft_size=int(sr * winlen))
+        if spec.min() == 0:
+            # prevent overflow in the following log(x)
+            spec[np.where(spec == 0)] = sys.float_info.min
+        mcep = sptk.sp2mc(spec, n_mcep - 1, mcep_alpha)
 
         # in future may need to check the length between spec and f0
-        h = np.vstack((spec, f0))
+        h = np.vstack((mcep.T, f0))
         # mulaw encode
         wav = enc(wav).astype(np.uint8)
 
@@ -61,4 +70,3 @@ def preprocess(wav_dir, output, **kwargs):
     _process_wav(test_files, test_data, **kwargs)
 
     calc_stats(train_data, out_dir)
-
