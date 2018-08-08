@@ -51,8 +51,7 @@ if __name__ == '__main__':
             wav, sr = load(args.infile, sr=None)
             x = wav.astype(float)
             h = get_mcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0, args.window_step * 1000,
-                               args.num_mcep,
-                               args.mcep_alpha)
+                               args.num_mcep, args.mcep_alpha)
             h = scaler.transform(h.T).T
 
             # interpolation
@@ -73,7 +72,7 @@ if __name__ == '__main__':
 
             print("Decoding file", args.infile)
             a = datetime.now().replace(microsecond=0)
-            generation = net.fast_generate(h=h, c=args.c)
+            generation = net.fast_generate(h=h, c=args.c, method='argmax')
 
             dec = decoder(args.q_channels)
             generation = dec(generation)

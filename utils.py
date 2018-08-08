@@ -34,6 +34,7 @@ def get_mcc_and_f0(x, sr, winlen, minf0, maxf0, frame_period, n_mcep, alpha):
     if spec.min() == 0:
         # prevent overflow in the following log(x)
         spec[np.where(spec == 0)] = 1e-150
+        print("have 0")
     mcep = sptk.sp2mc(spec, n_mcep - 1, alpha)
 
     # in future may need to check the length between spec and f0
