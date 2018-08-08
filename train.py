@@ -4,7 +4,7 @@ import torch.backends.cudnn as cudnn
 import argparse
 import os
 
-from preprocess import preprocess
+from preprocess import preprocess_multi
 from models import general_FFTNet
 from dataset import CMU_Dataset
 from datetime import datetime
@@ -42,9 +42,9 @@ def main():
     args = parser.parse_args()
     if args.preprocess:
         print('==> Preprocessing data ...')
-        preprocess(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
-                   n_mcep=args.num_mcep, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0, maxf0=args.maximum_f0,
-                   q_channels=args.q_channels)
+        preprocess_multi(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
+                         n_mcep=args.num_mcep, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0, maxf0=args.maximum_f0,
+                         q_channels=args.q_channels)
 
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),

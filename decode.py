@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
             print("Decoding file", args.infile)
             a = datetime.now().replace(microsecond=0)
-            generation = net.fast_generate(h=h, c=args.c, method='argmax')
+            generation = net.fast_generate(h=h, c=args.c, method='sampling')
 
             dec = decoder(args.q_channels)
             generation = dec(generation)

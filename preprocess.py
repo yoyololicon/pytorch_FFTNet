@@ -1,6 +1,8 @@
 import os
 import sys
 from multiprocessing import Pool, cpu_count
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from tqdm import tqdm
 from itertools import repeat
 from librosa.core import load
@@ -12,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 def _process_wav(file_list, outfile, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, q_channels):
     data_dict = {}
     enc = encoder(q_channels)
-    for f in file_list:
+    for f in tqdm(file_list):
         wav, sr = load(f, sr=None)
 
         # hopsize = int(sr * winstep)
@@ -21,15 +23,9 @@ def _process_wav(file_list, outfile, winlen, winstep, n_mcep, mcep_alpha, minf0,
         x = wav.astype(float)
         h = get_mcc_and_f0(x, sr, winlen, minf0, maxf0, winstep * 1000, n_mcep, mcep_alpha)
         # mulaw encode
-        wav = enc(wav).astype(np.uint8)
-
-        if np.isinf(h).any():
-            print(f, "is infinite")
-        if np.isnan(h).any():
-            print(f, "is nan")
+        wav = enc(x).astype(np.uint8)
 
         id = os.path.basename(f).replace(".wav", "")
-        print("reading", id, "...")
         data_dict[id] = wav
         data_dict[id + "_h"] = h
     np.savez(outfile, **data_dict)
@@ -80,30 +76,28 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
     test_files = files[1032:]
 
     enc = encoder(q_channels)
-
-    pool = Pool(cpu_count())
+    feature_fn = partial(get_features, winlen=winlen, winstep=winstep, n_mcep=n_mcep, mcep_alpha=mcep_alpha,
+                         minf0=minf0, maxf0=maxf0)
     print("Running", cpu_count(), "processes.")
 
-    print("Processing training data ...")
     data_dict = {}
-    it = pool.starmap(get_features,
-                      zip(train_files, repeat(winlen), repeat(winstep), repeat(n_mcep), repeat(mcep_alpha),
-                          repeat(minf0), repeat(maxf0)))
-
-    for i, (id, data, feature) in enumerate(tqdm(it, total=len(train_files))):
-        data_dict[id] = enc(data)
-        data_dict[id + '_h'] = feature
+    print("Processing training data ...")
+    with ProcessPoolExecutor(cpu_count()) as executor:
+        futures = [executor.submit(feature_fn, f) for f in train_files]
+        for future in tqdm(futures):
+            name, data, feature = future.result()
+            data_dict[name] = enc(data).astype(np.uint8)
+            data_dict[name + '_h'] = feature
     np.savez(train_data, **data_dict)
 
-    print("Processing test data ...")
     data_dict = {}
-    it = pool.starmap(get_features,
-                      zip(test_files, repeat(winlen), repeat(winstep), repeat(n_mcep), repeat(mcep_alpha),
-                          repeat(minf0), repeat(maxf0)))
-
-    for i, (id, data, feature) in enumerate(tqdm(it, total=len(test_files))):
-        data_dict[id] = enc(data)
-        data_dict[id + '_h'] = feature
+    print("Processing test data ...")
+    with ProcessPoolExecutor(cpu_count()) as executor:
+        futures = [executor.submit(feature_fn, f) for f in test_files]
+        for future in tqdm(futures):
+            name, data, feature = future.result()
+            data_dict[name] = enc(data).astype(np.uint8)
+            data_dict[name + '_h'] = feature
     np.savez(test_data, **data_dict)
 
     calc_stats(train_data, out_dir)
@@ -113,12 +107,9 @@ def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0):
     wav, sr = load(filename, sr=None)
 
     x = wav.astype(float)
-    h = get_mcc_and_f0(x, sr, winlen, minf0, maxf0, winstep * 1000, n_mcep, mcep_alpha)
+    h = get_mcc_and_f0(x, sr, winlen=winlen, minf0=minf0, maxf0=maxf0, frame_period=winstep * 1000, n_mcep=n_mcep,
+                       alpha=mcep_alpha)
     id = os.path.basename(filename).replace(".wav", "")
-    if np.isinf(h).any():
-        print(filename, "is infinite")
-    if np.isnan(h).any():
-        print(filename, "is nan")
     return (id, wav, h)
 
 
