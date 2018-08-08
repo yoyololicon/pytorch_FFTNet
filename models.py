@@ -46,7 +46,7 @@ class general_FFTNet(nn.Module):
             in_channels = channels
         self.fc_out = nn.Linear(channels, classes)
         self.padding_layer = nn.ConstantPad1d((self.r_field, 0), 0.)
-        self.init_buffer = torch.empty(1, self.in_channels, self.r_field).float()
+        self.init_buffer = nn.Parameter(torch.empty(1, self.in_channels, self.r_field).float(), requires_grad=False)
 
     def forward(self, x, h=None, zeropad=True):
         if zeropad:

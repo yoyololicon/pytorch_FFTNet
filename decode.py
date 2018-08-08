@@ -27,19 +27,25 @@ parser.add_argument('--q_channels', type=int, default=256, help='quantization ch
 parser.add_argument('--interp_method', type=str, default='linear')
 parser.add_argument('-c', type=float, default=2., help='a constant multiply before softmax.')
 parser.add_argument('--model_file', type=str, default='fftnet_model.pth')
+parser.add_argument('--cuda', action='store_true')
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    net = torch.load("fftnet_model.pth")
+    net = torch.load(args.model_file)
     scaler = StandardScaler()
     scaler_info = np.load(os.path.join(args.data_dir, 'scaler.npz'))
     scaler.mean_ = scaler_info['mean']
     scaler.scale_ = scaler_info['scale']
 
     net.eval()
-    net = net.cpu()
+    if not args.cuda:
+        net = net.cpu()
+    else:
+        net = net.cuda()
+
     with torch.no_grad():
         if args.infile is None:
+            # haven't implement
             pass
         elif args.outfile is not None:
             wav, sr = load(args.infile, sr=None)
@@ -62,6 +68,9 @@ if __name__ == '__main__':
                 exit(1)
 
             h = torch.from_numpy(h).unsqueeze(0).float()
+            if args.cuda:
+                h = h.cuda()
+
             print("Decoding file", args.infile)
             a = datetime.now().replace(microsecond=0)
             generation = net.fast_generate(h=h, c=args.c)
@@ -72,3 +81,5 @@ if __name__ == '__main__':
             cost = datetime.now().replace(microsecond=0) - a
             print("Generation time cost:", cost)
             print("Speed:", generation.size(0) / cost.total_seconds(), "samples/sec.")
+        else:
+            print("Please enter output file name.")
