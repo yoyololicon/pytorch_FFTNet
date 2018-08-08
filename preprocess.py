@@ -7,7 +7,7 @@ from tqdm import tqdm
 from itertools import repeat
 from librosa.core import load
 import numpy as np
-from utils import zero_padding, encoder, get_mcc_and_f0
+from utils import zero_padding, encoder, get_mcc_and_f0, get_mfcc_and_f0
 from sklearn.preprocessing import StandardScaler
 
 
@@ -63,7 +63,7 @@ def preprocess(wav_dir, output, **kwargs):
     calc_stats(train_data, out_dir)
 
 
-def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, q_channels):
+def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, q_channels, type):
     in_dir = os.path.join(wav_dir)
     out_dir = os.path.join(output)
     train_data = os.path.join(out_dir, 'train.npz')
@@ -77,7 +77,7 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
 
     enc = encoder(q_channels)
     feature_fn = partial(get_features, winlen=winlen, winstep=winstep, n_mcep=n_mcep, mcep_alpha=mcep_alpha,
-                         minf0=minf0, maxf0=maxf0)
+                         minf0=minf0, maxf0=maxf0, type=type)
     print("Running", cpu_count(), "processes.")
 
     data_dict = {}
@@ -103,14 +103,17 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
     calc_stats(train_data, out_dir)
 
 
-def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0):
+def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
     wav, sr = load(filename, sr=None)
 
     x = wav.astype(float)
-    h = get_mcc_and_f0(x, sr, winlen=winlen, minf0=minf0, maxf0=maxf0, frame_period=winstep * 1000, n_mcep=n_mcep,
-                       alpha=mcep_alpha)
+    if type == 'mcc':
+        h = get_mcc_and_f0(x, sr, winlen=winlen, minf0=minf0, maxf0=maxf0, frame_period=winstep * 1000, n_mcep=n_mcep,
+                           alpha=mcep_alpha)
+    else:
+        h = get_mfcc_and_f0(x, sr, winlen, minf0, maxf0, winstep * 1000, n_mcep)
     id = os.path.basename(filename).replace(".wav", "")
-    return (id, wav, h)
+    return (id, x, h)
 
 
 if __name__ == '__main__':

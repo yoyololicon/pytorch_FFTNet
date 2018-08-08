@@ -8,12 +8,13 @@ from torchaudio import save
 from datetime import datetime
 from scipy.interpolate import interp1d
 
-from utils import get_mcc_and_f0, decoder
+from utils import get_mcc_and_f0, decoder, get_mfcc_and_f0
 
 parser = argparse.ArgumentParser(description='FFTNet decoder.')
 parser.add_argument('--infile', type=str, default=None)
 parser.add_argument('--outfile', type=str, default=None)
 parser.add_argument('--data_dir', type=str, default='training_data')
+parser.add_argument('--feature_type', type=str, default='mcc')
 parser.add_argument('--num_mcep', type=int, default=25, help='number of mcc coefficients')
 parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
                                                                    '16khz: 0.42,'
@@ -50,8 +51,12 @@ if __name__ == '__main__':
         elif args.outfile is not None:
             wav, sr = load(args.infile, sr=None)
             x = wav.astype(float)
-            h = get_mcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0, args.window_step * 1000,
-                               args.num_mcep, args.mcep_alpha)
+            if args.feature_type == 'mcc':
+                h = get_mcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0, args.window_step * 1000,
+                                   args.num_mcep, args.mcep_alpha)
+            else:
+                h = get_mfcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0,
+                                    args.window_step * 1000, args.num_mcep)
             h = scaler.transform(h.T).T
 
             # interpolation

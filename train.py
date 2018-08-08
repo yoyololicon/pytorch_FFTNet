@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(description='FFTNet vocoder training.')
 parser.add_argument('--preprocess', action='store_true')
 parser.add_argument('--wav_dir', type=str, default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
 parser.add_argument('--data_dir', type=str, default='training_data')
+parser.add_argument('--feature_type', type=str, default='mcc')
 parser.add_argument('--num_mcep', type=int, default=25, help='number of mcc coefficients')
 parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
                                                                    '16khz: 0.42,'
@@ -30,7 +31,7 @@ parser.add_argument('--radixs', nargs='+', type=int, default=[2] * 11)
 parser.add_argument('--batch_size', type=int, default=5)
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--steps', type=int, default=100000, help='iteration number')
-parser.add_argument('--noise_injecting', type=bool, default=True)
+parser.add_argument('--without_noise_injecting', action='store_true')
 parser.add_argument('--model_file', type=str, default='fftnet_model.pth')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
                     help='Directory to save checkpoints.')
@@ -44,7 +45,7 @@ def main():
         print('==> Preprocessing data ...')
         preprocess_multi(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
                          n_mcep=args.num_mcep, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0, maxf0=args.maximum_f0,
-                         q_channels=args.q_channels)
+                         q_channels=args.q_channels, type=args.feature_type)
 
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
@@ -71,7 +72,7 @@ def main():
         for batch_idx, (inputs, targets, features) in enumerate(training_loader):
             inputs, targets, features = inputs.cuda(), targets.cuda(), features.cuda()
 
-            if args.noise_injecting:
+            if not args.without_noise_injecting:
                 inputs += torch.randn_like(inputs) / args.q_channels
 
             optimizer.zero_grad()
