@@ -14,7 +14,7 @@ parser.add_argument('--preprocess', action='store_true')
 parser.add_argument('--wav_dir', type=str, default='/host/data_dsk1/dataset/CMU_ARCTIC_Databases/cmu_us_rms_arctic/wav')
 parser.add_argument('--data_dir', type=str, default='training_data')
 parser.add_argument('--feature_type', type=str, default='mcc')
-parser.add_argument('--num_mcep', type=int, default=25, help='number of mcc coefficients')
+parser.add_argument('--feature_dim', type=int, default=25, help='number of mcc coefficients')
 parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
                                                                    '16khz: 0.42,'
                                                                    '10khz: 0.35,'
@@ -44,7 +44,8 @@ def main():
     if args.preprocess:
         print('==> Preprocessing data ...')
         preprocess_multi(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
-                         n_mcep=args.num_mcep, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0, maxf0=args.maximum_f0,
+                         n_mcep=args.feature_dim, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0,
+                         maxf0=args.maximum_f0,
                          q_channels=args.q_channels, type=args.feature_type)
 
     print('==> Loading Dataset..')

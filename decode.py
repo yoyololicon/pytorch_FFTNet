@@ -9,13 +9,14 @@ from datetime import datetime
 from scipy.interpolate import interp1d
 
 from utils import get_mcc_and_f0, decoder, get_mfcc_and_f0
+from preprocess import get_features
 
 parser = argparse.ArgumentParser(description='FFTNet decoder.')
 parser.add_argument('--infile', type=str, default=None)
 parser.add_argument('--outfile', type=str, default=None)
 parser.add_argument('--data_dir', type=str, default='training_data')
 parser.add_argument('--feature_type', type=str, default='mcc')
-parser.add_argument('--num_mcep', type=int, default=25, help='number of mcc coefficients')
+parser.add_argument('--feature_dim', type=int, default=25, help='number of mcc coefficients')
 parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
                                                                    '16khz: 0.42,'
                                                                    '10khz: 0.35,'
@@ -29,6 +30,8 @@ parser.add_argument('--interp_method', type=str, default='linear')
 parser.add_argument('-c', type=float, default=2., help='a constant multiply before softmax.')
 parser.add_argument('--model_file', type=str, default='fftnet_model.pth')
 parser.add_argument('--cuda', action='store_true')
+
+sampling_rate = 16000
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -49,18 +52,11 @@ if __name__ == '__main__':
             # haven't implement
             pass
         elif args.outfile is not None:
-            wav, sr = load(args.infile, sr=None)
-            x = wav.astype(float)
-            if args.feature_type == 'mcc':
-                h = get_mcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0, args.window_step * 1000,
-                                   args.num_mcep, args.mcep_alpha)
-            else:
-                h = get_mfcc_and_f0(x, sr, args.window_length, args.minimum_f0, args.maximum_f0,
-                                    args.window_step * 1000, args.num_mcep)
-            h = scaler.transform(h.T).T
+            id, _, h = get_features(args.infile, args.windown_length, args.window_step, args.feature_dim,
+                                    args.mcep_alpha, args.minimum_f0, args.maximum_f0, args.feature_type)
 
             # interpolation
-            hopsize = int(sr * args.window_step)
+            hopsize = int(sampling_rate * args.window_step)
             if args.interp_method == 'linear':
                 xx = np.arange(h.shape[1]) * hopsize
                 f = interp1d(xx, h, copy=False, axis=1)
