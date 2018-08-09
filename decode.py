@@ -52,7 +52,7 @@ if __name__ == '__main__':
             # haven't implement
             pass
         elif args.outfile is not None:
-            id, _, h = get_features(args.infile, args.windown_length, args.window_step, args.feature_dim,
+            id, _, h = get_features(args.infile, args.window_length, args.window_step, args.feature_dim,
                                     args.mcep_alpha, args.minimum_f0, args.maximum_f0, args.feature_type)
 
             # interpolation

@@ -32,9 +32,10 @@ parser.add_argument('--batch_size', type=int, default=5)
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--steps', type=int, default=100000, help='iteration number')
 parser.add_argument('--without_noise_injecting', action='store_true')
-parser.add_argument('--model_file', type=str, default='fftnet_model.pth')
+parser.add_argument('--model_file', type=str, default='fftnet_model')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
                     help='Directory to save checkpoints.')
+parser.add_argument('--checkpoint_step', type=int, default=5000)
 
 sampling_rate = 16000
 
@@ -55,7 +56,7 @@ def main():
 
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    net = general_FFTNet(radixs=args.radixs, aux_channels=args.num_mcep + 1, channels=args.fft_channels,
+    net = general_FFTNet(radixs=args.radixs, aux_channels=args.feature_dim + 1, channels=args.fft_channels,
                          classes=args.q_channels).to(device)
 
     if torch.cuda.device_count() > 1:
@@ -66,6 +67,7 @@ def main():
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
 
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
     print("Start Training.")
     a = datetime.now().replace(microsecond=0)
     global_step = 0
@@ -88,11 +90,22 @@ def main():
             if global_step > args.steps:
                 break
 
+            if global_step % args.checkpoint_step == 0:
+                model = net.module if isinstance(net, torch.nn.DataParallel) else net
+                checkpoint_state = {
+                    "net": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "global_step": global_step
+                }
+                torch.save(checkpoint_state,
+                           os.path.join(args.checkpoint_dir, args.model_file + ".ckpt-{}.pt".format(global_step)))
+                print("Checkpoint saved.")
+
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     net = net.module if isinstance(net, torch.nn.DataParallel) else net
 
-    torch.save(net, args.model_file)
+    torch.save(net, args.model_file + ".pth")
     print("Model saved to", args.model_file)
 
 

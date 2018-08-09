@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from tqdm import tqdm
 from itertools import repeat
-from librosa.core import load
+from librosa.core import load, stft
 from librosa.feature import mfcc
 from librosa.util import frame
 import pyworld as world
@@ -26,13 +26,12 @@ def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, ty
 
     window_size = int(sr * winlen)
     hop_size = int(sr * winstep)
+
     # get mel
     if type == 'mcc':
-
-        paded_x = np.pad(x, (window_size // 2,) * 2, 'constant')
-        frames = frame(paded_x, window_size, hop_size).T
-        frames *= sptk.blackman(window_size)
-        h = sptk.mcep(frames, n_mcep - 1, mcep_alpha).T
+        nfft = 2 ** (window_size - 1).bit_length()
+        spec = np.abs(stft(x, n_fft=nfft, hop_length=hop_size, win_length=window_size, window='blackman')) ** 2
+        h = sptk.mcep(spec.T, n_mcep - 1, mcep_alpha, eps=-80, etype=2, itype=4).T
 
         # old mehtod but will generate NaN value
         """
@@ -113,13 +112,13 @@ def _process_wav(file_list, outfile, winlen, winstep, n_mcep, mcep_alpha, minf0,
                                frame_period=winstep * 1000)  # can't adjust window size
         f0 = world.stonemask(x, _f0, t, sr)
 
+        window_size = int(sr * winlen)
+        hop_size = int(sr * winstep)
         # get mel
         if type == 'mcc':
-            spec = world.cheaptrick(x, f0, t, sr, f0_floor=minf0, fft_size=int(sr * winlen))
-            if spec.min() == 0:
-                # prevent overflow in the following log(x)
-                spec[np.where(spec == 0)] = 1e-150
-            h = sptk.sp2mc(spec, n_mcep - 1, mcep_alpha).T
+            nfft = 2 ** (window_size - 1).bit_length()
+            spec = np.abs(stft(x, n_fft=nfft, hop_length=hop_size, win_length=window_size, window='blackman')) ** 2
+            h = sptk.mcep(spec, n_mcep - 1, mcep_alpha, eps=-60, etype=2, itype=4).T
         else:
             h = mfcc(x, sr, n_mfcc=n_mcep, n_fft=int(sr * winlen), hop_length=int(sr * winstep))
         h = np.vstack((h, f0))
@@ -152,6 +151,6 @@ def preprocess(wav_dir, output, **kwargs):
 
 
 if __name__ == '__main__':
-    preprocess_multi("/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav", "training_data", winlen=0.025, winstep=0.01,
-                     n_mcep=25, mcep_alpha=0.42, minf0=40, maxf0=500,
-                     q_channels=256, type='mfcc')
+    preprocess("/media/ycy/Shared/Datasets/cmu_us_rms_arctic/wav", "training_data", winlen=0.025, winstep=0.01,
+               n_mcep=25, mcep_alpha=0.42, minf0=40, maxf0=500,
+               q_channels=256, type='mcc')
