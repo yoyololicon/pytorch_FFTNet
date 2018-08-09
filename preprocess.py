@@ -7,10 +7,11 @@ from tqdm import tqdm
 from itertools import repeat
 from librosa.core import load
 from librosa.feature import mfcc
+from librosa.util import frame
 import pyworld as world
 import pysptk as sptk
 import numpy as np
-from utils import zero_padding, encoder, get_mcc_and_f0, get_mfcc_and_f0
+from utils import zero_padding, encoder
 from sklearn.preprocessing import StandardScaler
 
 
@@ -23,15 +24,26 @@ def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, ty
                            frame_period=winstep * 1000)  # can't adjust window size
     f0 = world.stonemask(x, _f0, t, sr)
 
+    window_size = int(sr * winlen)
+    hop_size = int(sr * winstep)
     # get mel
     if type == 'mcc':
+
+        paded_x = np.pad(x, (window_size // 2,) * 2, 'constant')
+        frames = frame(paded_x, window_size, hop_size).T
+        frames *= sptk.blackman(window_size)
+        h = sptk.mcep(frames, n_mcep - 1, mcep_alpha).T
+
+        # old mehtod but will generate NaN value
+        """
         spec = world.cheaptrick(x, f0, t, sr, f0_floor=minf0, fft_size=int(sr * winlen))
         if spec.min() == 0:
             # prevent overflow in the following log(x)
             spec[np.where(spec == 0)] = 1e-150
         h = sptk.sp2mc(spec, n_mcep - 1, mcep_alpha).T
+        """
     else:
-        h = mfcc(x, sr, n_mfcc=n_mcep, n_fft=int(sr * winlen), hop_length=int(sr * winstep))
+        h = mfcc(x, sr, n_mfcc=n_mcep, n_fft=window_size, hop_length=hop_size)
     h = np.vstack((h, f0))
     id = os.path.basename(filename).replace(".wav", "")
     return (id, x, h)

@@ -8,7 +8,7 @@ from torchaudio import save
 from datetime import datetime
 from scipy.interpolate import interp1d
 
-from utils import get_mcc_and_f0, decoder, get_mfcc_and_f0
+from utils import decoder
 from preprocess import get_features
 
 parser = argparse.ArgumentParser(description='FFTNet decoder.')
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
             dec = decoder(args.q_channels)
             generation = dec(generation)
-            save(args.outfile, generation, sr)
+            save(args.outfile, generation, sampling_rate)
             cost = datetime.now().replace(microsecond=0) - a
             print("Generation time cost:", cost)
             print("Speed:", generation.size(0) / cost.total_seconds(), "samples/sec.")
