@@ -33,12 +33,23 @@ python decode.py \
 [FFTNet_generator](FFTNet_generator.py) and [FFTNet_vocoder](FFTNet_vocoder.py) are two files I used to test the model 
 workability using torchaudio yesno dataset.
 
+## Current result
+
+There are some files decoded in the [samples](samples) folder. 
+
+## Differences from paper
+
+* learning rate: 0.001 >> 0.0001
+* window size: 400 >> depend on minimum_f0 (cuz I use pyworld to get f0 and mcc coefficients)
+
+
 ## TODO
 
-- [x] Add generation/decode on test dataset.
-- [ ] Implement voiced/unvoiced conditional sampling.
+- [x] Zero padding.
+- [x] Injected noise.
+- [ ] Voiced/unvoiced conditional sampling.
 - [ ] Post-synthesis denoising.
-- [ ] Add checkpoints function in training.
+- [X] Add checkpoints function in training.
 
 ## Notes
 
