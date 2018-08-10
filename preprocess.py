@@ -20,8 +20,7 @@ def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, ty
 
     # get f0
     x = wav.astype(float)
-    _f0, t = world.harvest(x, sr, f0_floor=minf0, f0_ceil=maxf0,
-                           frame_period=winstep * 1000)  # can't adjust window size
+    _f0, t = world.harvest(x, sr, f0_floor=minf0, f0_ceil=maxf0, frame_period=winstep * 1000)
     f0 = world.stonemask(x, _f0, t, sr)
 
     window_size = int(sr * winlen)
@@ -29,18 +28,8 @@ def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, ty
 
     # get mel
     if type == 'mcc':
-        nfft = 2 ** (window_size - 1).bit_length()
-        spec = np.abs(stft(x, n_fft=nfft, hop_length=hop_size, win_length=window_size, window='blackman')) ** 2
-        h = sptk.mcep(spec.T, n_mcep - 1, mcep_alpha, eps=-80, etype=2, itype=4).T
-
-        # old mehtod but will generate NaN value
-        """
-        spec = world.cheaptrick(x, f0, t, sr, f0_floor=minf0, fft_size=int(sr * winlen))
-        if spec.min() == 0:
-            # prevent overflow in the following log(x)
-            spec[np.where(spec == 0)] = 1e-150
+        spec = world.cheaptrick(x, f0, t, sr, f0_floor=minf0)
         h = sptk.sp2mc(spec, n_mcep - 1, mcep_alpha).T
-        """
     else:
         h = mfcc(x, sr, n_mfcc=n_mcep, n_fft=window_size, hop_length=hop_size)
     h = np.vstack((h, f0))
@@ -76,11 +65,12 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
     enc = encoder(q_channels)
     feature_fn = partial(get_features, winlen=winlen, winstep=winstep, n_mcep=n_mcep, mcep_alpha=mcep_alpha,
                          minf0=minf0, maxf0=maxf0, type=type)
-    print("Running", cpu_count(), "processes.")
+    n_workers = cpu_count() // 2
+    print("Running", n_workers, "processes.")
 
     data_dict = {}
     print("Processing training data ...")
-    with ProcessPoolExecutor(cpu_count()) as executor:
+    with ProcessPoolExecutor(n_workers) as executor:
         futures = [executor.submit(feature_fn, f) for f in train_files]
         for future in tqdm(futures):
             name, data, feature = future.result()
@@ -90,7 +80,7 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
 
     data_dict = {}
     print("Processing test data ...")
-    with ProcessPoolExecutor(cpu_count()) as executor:
+    with ProcessPoolExecutor(n_workers) as executor:
         futures = [executor.submit(feature_fn, f) for f in test_files]
         for future in tqdm(futures):
             name, data, feature = future.result()

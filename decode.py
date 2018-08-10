@@ -55,6 +55,7 @@ if __name__ == '__main__':
             id, _, h = get_features(args.infile, args.window_length, args.window_step, args.feature_dim,
                                     args.mcep_alpha, args.minimum_f0, args.maximum_f0, args.feature_type)
 
+            h = scaler.transform(h.T).T
             # interpolation
             hopsize = int(sampling_rate * args.window_step)
             if args.interp_method == 'linear':

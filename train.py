@@ -15,10 +15,10 @@ parser.add_argument('--wav_dir', type=str, default='/host/data_dsk1/dataset/CMU_
 parser.add_argument('--data_dir', type=str, default='training_data')
 parser.add_argument('--feature_type', type=str, default='mcc')
 parser.add_argument('--feature_dim', type=int, default=25, help='number of mcc coefficients')
-parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.'
-                                                                   '16khz: 0.42,'
-                                                                   '10khz: 0.35,'
-                                                                   '8khz: 0.31.')
+parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.\n'
+                                                                   '16khz: 0.42\n'
+                                                                   '10khz: 0.35\n'
+                                                                   '8khz: 0.31\n')
 parser.add_argument('--window_length', type=float, default=0.025)
 parser.add_argument('--window_step', type=float, default=0.01)
 parser.add_argument('--minimum_f0', type=float, default=40)
@@ -92,13 +92,7 @@ def main():
 
             if global_step % args.checkpoint_step == 0:
                 model = net.module if isinstance(net, torch.nn.DataParallel) else net
-                checkpoint_state = {
-                    "net": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "global_step": global_step
-                }
-                torch.save(checkpoint_state,
-                           os.path.join(args.checkpoint_dir, args.model_file + ".ckpt-{}.pt".format(global_step)))
+                torch.save(model, os.path.join(args.checkpoint_dir, args.model_file + "_{}.pth".format(global_step)))
                 print("Checkpoint saved.")
 
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
