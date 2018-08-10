@@ -2,6 +2,7 @@ import numpy as np
 from torchaudio.transforms import MuLawEncoding, MuLawExpanding
 from webrtcvad import Vad
 from librosa.util import frame
+import librosa
 
 
 def voice_unvoice(x, sr, winstep=0.01, winlen=0.03, mode=3):
@@ -10,6 +11,10 @@ def voice_unvoice(x, sr, winstep=0.01, winlen=0.03, mode=3):
     hopsize = int(sr * winstep)
     x = np.pad(x, (windowsize // 2,) * 2, 'constant')
     frames = frame(x, frame_length=windowsize, hop_length=hopsize)
+    y = []
+    for i in range(frames.shape[1]):
+        y.append(1 if vad.is_speech(frames[:, i], sr) else 0)
+    return y
 
 
 def encoder(quantization_channels):
@@ -36,7 +41,6 @@ def zero_padding(x, maxlen, dim=0):
 
 
 if __name__ == '__main__':
-    x = np.random.rand(3, 5)
-    print(x)
-    x = zero_padding(x, 10, 1)
-    print(x.shape, x)
+    y, sr = librosa.load(librosa.util.example_audio_file(), sr=16000)
+    print(y.shape)
+    print(voice_unvoice(y, sr))
