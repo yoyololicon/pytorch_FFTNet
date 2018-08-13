@@ -64,6 +64,8 @@ def main():
     if device == 'cuda':
         cudnn.benchmark = True
 
+    print(sum(p.numel() for p in net.parameters()), "of parameters.")
+
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
 
