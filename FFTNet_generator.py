@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
 
-            logits = net(inputs)[:, :, 1:]
+            logits = net(inputs)
             loss = criterion(logits.unsqueeze(-1), targets.unsqueeze(-1))
             loss.backward()
             optimizer.step()

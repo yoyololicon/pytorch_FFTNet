@@ -47,6 +47,8 @@ if __name__ == '__main__':
     else:
         net = net.cuda()
 
+    print(args.model_file, "has", sum(p.numel() for p in net.parameters()), "of parameters.")
+
     with torch.no_grad():
         if args.infile is None:
             # haven't implement

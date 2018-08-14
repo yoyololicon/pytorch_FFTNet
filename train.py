@@ -15,10 +15,10 @@ parser.add_argument('--wav_dir', type=str, default='/host/data_dsk1/dataset/CMU_
 parser.add_argument('--data_dir', type=str, default='training_data')
 parser.add_argument('--feature_type', type=str, default='mcc')
 parser.add_argument('--feature_dim', type=int, default=25, help='number of mcc coefficients')
-parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant.\n'
-                                                                   '16khz: 0.42\n'
-                                                                   '10khz: 0.35\n'
-                                                                   '8khz: 0.31\n')
+parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass filter constant. '
+                                                                   '16khz: 0.42; '
+                                                                   '10khz: 0.35; '
+                                                                   '8khz: 0.31.')
 parser.add_argument('--window_length', type=float, default=0.025)
 parser.add_argument('--window_step', type=float, default=0.01)
 parser.add_argument('--minimum_f0', type=float, default=40)
@@ -52,7 +52,7 @@ def main():
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
                                    args.interp_method)
-    training_loader = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=4, shuffle=True)
+    training_loader = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=6, shuffle=True)
 
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -82,7 +82,7 @@ def main():
 
             optimizer.zero_grad()
 
-            logits = net(inputs, features)[:, :, 1:]
+            logits = net(inputs, features)
             loss = criterion(logits.unsqueeze(-1), targets.unsqueeze(-1))
             loss.backward()
             optimizer.step()
