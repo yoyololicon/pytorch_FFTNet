@@ -51,7 +51,9 @@ if __name__ == '__main__':
     data_loader = DataLoader(data, batch_size=batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
-    net = general_FFTNet(radixs, 1, channels, classes=channels).cuda()
+    net = general_FFTNet(radixs, 128, channels).cuda()
+
+    print(sum(p.numel() for p in net.parameters()), "of parameters.")
 
     optimizer = optim.Adam(net.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss()
@@ -63,18 +65,14 @@ if __name__ == '__main__':
     seq_idx = torch.arange(seq_M).view(1, -1)
     while step < steps:
         for batch_idx, (inputs, _) in enumerate(data_loader):
-            inputs = inputs.transpose(1, 2)
-            targets = torch.cat((inputs[:, 0, 1:], inputs[:, 0, 0:1]), 1)
-            inputs = inputs.float() / (channels - 1) * 2 - 1
+            inputs = inputs.squeeze(-1)
+            targets = torch.cat((inputs[:, 1:], inputs[:, 0:1]), 1)
 
             # random sample segments from batch
             randn_idx = torch.LongTensor(inputs.size(0)).random_(maxlen - seq_M)
             randn_seq_idx = seq_idx.expand(inputs.size(0), -1) + randn_idx.unsqueeze(-1)
-            inputs = torch.gather(inputs, 2, randn_seq_idx.view(-1, 1, seq_M)).float().cuda()
+            inputs = torch.gather(inputs, 1, randn_seq_idx).long().cuda()
             targets = torch.gather(targets, 1, randn_seq_idx).long().cuda()
-
-            # inject guassion noise
-            inputs += torch.randn_like(inputs) / channels
 
             optimizer.zero_grad()
 

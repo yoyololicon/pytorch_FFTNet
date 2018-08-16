@@ -5,9 +5,22 @@ import torch.nn.functional as F
 from operator import mul
 from functools import reduce
 
+from random import randint
+
+
+class One_Hot(nn.Module):
+    def __init__(self, depth):
+        super().__init__()
+        self.depth = depth
+        self.ones = nn.Parameter(torch.eye(depth).float(), requires_grad=False)
+
+    def forward(self, x):
+        # assume input shape = (batch, seq), output shape = (batch, depth, seq)
+        return self.ones.index_select(0, x.view(-1)).view(x.size() + torch.Size([self.depth]))
+
 
 class general_FFTLayer(nn.Module):
-    def __init__(self, in_channels, out_channels, N, radix=2, aux_channels=None):
+    def __init__(self, in_channels, out_channels, N, *, radix=2, aux_channels=None):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -34,10 +47,9 @@ class general_FFTLayer(nn.Module):
 
 
 class general_FFTNet(nn.Module):
-    def __init__(self, radixs=[2] * 11, in_channels=1, channels=256, aux_channels=None, classes=256):
+    def __init__(self, radixs=[2] * 11, fft_channels=128, classes=256, *, aux_channels=None):
         super().__init__()
-        self.in_channels = in_channels
-        self.channels = channels
+        self.channels = fft_channels
         self.aux_channels = aux_channels
         self.classes = classes
         N_seq = [reduce(mul, radixs[i:]) for i in range(len(radixs))]
@@ -45,15 +57,22 @@ class general_FFTNet(nn.Module):
         self.radixs = radixs
         self.N_seq = N_seq
 
+        # transform input to one hot
+        self.one_hot = One_Hot(classes)
+
         self.fft_layers = nn.ModuleList()
+        in_channels = classes
         for N, r in zip(N_seq, radixs):
-            self.fft_layers.append(general_FFTLayer(in_channels, channels, N, r, aux_channels))
-            in_channels = channels
-        self.fc_out = nn.Linear(channels, classes)
+            self.fft_layers.append(general_FFTLayer(in_channels, fft_channels, N, radix=r, aux_channels=aux_channels))
+            in_channels = fft_channels
+        self.fc_out = nn.Linear(in_channels, classes)
+
+        # only used when generating
         self.padding_layer = nn.ConstantPad1d((self.r_field, 0), 0.)
-        self.init_buffer = nn.Parameter(torch.empty(1, self.in_channels, self.r_field).float(), requires_grad=False)
+        self.init_buffer = nn.Parameter(torch.empty(1, self.classes, self.r_field).float(), requires_grad=False)
 
     def forward(self, x, h=None, zeropad=True):
+        x = self.one_hot(x).transpose(1, 2)
         for fft_layer in self.fft_layers:
             x = fft_layer(x, h, zeropad)
 
@@ -84,7 +103,7 @@ class general_FFTNet(nn.Module):
         output_list = []
         buf_list = []
         if h is None:
-            buf[:, :, -1].uniform_(-1, 1)
+            buf[:, randint(0, self.classes - 1), -1] = 1.
             for fft_layer, r, N in zip(self.fft_layers, self.radixs, self.N_seq):
                 buf_list.append(buf[:, :, N // r - 1:])
                 buf = fft_layer(buf, zeropad=False)
@@ -93,7 +112,7 @@ class general_FFTNet(nn.Module):
             logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
             sample = predict_fn(logits)
             output_list.append(sample.item())
-            sample = self.class2float(sample)
+            sample = self.one_hot(sample)
 
             for i in range(1, num_samples):
                 for j in range(len(buf_list)):
@@ -103,7 +122,7 @@ class general_FFTNet(nn.Module):
                 logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
                 sample = predict_fn(logits)
                 output_list.append(sample.item())
-                sample = self.class2float(sample)
+                sample = self.one_hot(sample)
         else:
             h = self.padding_layer(h)
             pos = self.r_field + 1
@@ -115,7 +134,7 @@ class general_FFTNet(nn.Module):
             logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
             sample = predict_fn(logits)
             output_list.append(sample.item())
-            sample = self.class2float(sample)
+            sample = self.one_hot(sample)
 
             for pos in range(self.r_field + 2, h.size(2) + 1):
                 for j in range(len(buf_list)):
@@ -125,7 +144,7 @@ class general_FFTNet(nn.Module):
                 logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
                 sample = predict_fn(logits)
                 output_list.append(sample.item())
-                sample = self.class2float(sample)
+                sample = self.one_hot(sample)
 
         outputs = torch.Tensor(output_list).view(-1, 1)
         return outputs

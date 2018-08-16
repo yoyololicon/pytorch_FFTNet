@@ -96,17 +96,17 @@ if __name__ == '__main__':
     enc = transforms.MuLawEncoding(channels)
     dec = transforms.MuLawExpanding(channels)
 
-    train_wav = enc(train_wav).astype(float) / (channels - 1) * 2 - 1
+    train_wav = enc(train_wav)
     train_targets = enc(train_targets)
 
     scaler = StandardScaler()
     train_features = scaler.fit_transform(train_features)
 
-    train_wav = train_wav.reshape(-1, 1, seq_M)
+    train_wav = train_wav.reshape(-1, seq_M)
     train_features = np.rollaxis(train_features.reshape(-1, seq_M, features_size), 2, 1)
     train_targets = train_targets.reshape(-1, seq_M)
 
-    train_wav = torch.from_numpy(train_wav).float()
+    train_wav = torch.from_numpy(train_wav).long()
     train_features = torch.from_numpy(train_features).float()
     train_targets = torch.from_numpy(train_targets).long()
     print(train_features.shape, train_wav.shape, train_targets.shape)
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
 
     print('==> Building model..')
-    net = general_FFTNet(radixs, 1, channels, features_size, classes=channels).cuda()
+    net = general_FFTNet(radixs, 128, channels, aux_channels=features_size).cuda()
 
     print(sum(p.numel() for p in net.parameters()), "of parameters.")
 
@@ -133,8 +133,6 @@ if __name__ == '__main__':
     step = 0
     while step < steps:
         for batch_idx, (inputs, features, targets) in enumerate(data_loader):
-            # inject guassion noise
-            inputs += torch.randn_like(inputs) / channels
             inputs, features, targets = inputs.cuda(), features.cuda(), targets.cuda()
 
             optimizer.zero_grad()
@@ -152,7 +150,7 @@ if __name__ == '__main__':
     print("Training time cost:", datetime.now().replace(microsecond=0) - a)
 
     print("Start to generate some noise...")
-    #net = net.cpu()
+    net = net.cpu()
     net.eval()
     with torch.no_grad():
         a = datetime.now().replace(microsecond=0)

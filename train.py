@@ -52,7 +52,7 @@ def main():
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
                                    args.interp_method)
-    training_loader = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=6, shuffle=True)
+    training_loader = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
