@@ -46,8 +46,7 @@ def main():
         print('==> Preprocessing data ...')
         preprocess_multi(args.wav_dir, args.data_dir, winlen=args.window_length, winstep=args.window_step,
                          n_mcep=args.feature_dim, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0,
-                         maxf0=args.maximum_f0,
-                         q_channels=args.q_channels, type=args.feature_type)
+                         maxf0=args.maximum_f0, type=args.feature_type)
 
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
@@ -64,7 +63,7 @@ def main():
     if device == 'cuda':
         cudnn.benchmark = True
 
-    print(sum(p.numel() for p in net.parameters()), "of parameters.")
+    print(sum(p.numel() for p in net.parameters() if p.requires_grad), "of parameters.")
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)

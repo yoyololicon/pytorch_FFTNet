@@ -15,7 +15,7 @@ from utils import zero_padding, encoder
 from sklearn.preprocessing import StandardScaler
 
 
-def get_features(filename, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
+def get_features(filename, *, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
     wav, sr = load(filename, sr=None)
 
     # get f0
@@ -50,7 +50,7 @@ def calc_stats(npzfile, out_dir):
     np.savez(os.path.join(out_dir, 'scaler.npz'), mean=np.float32(mean), scale=np.float32(scale))
 
 
-def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, q_channels, type):
+def preprocess_multi(wav_dir, output, *, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
     in_dir = os.path.join(wav_dir)
     out_dir = os.path.join(output)
     train_data = os.path.join(out_dir, 'train.npz')
@@ -62,7 +62,6 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
     train_files = files[:1032]
     test_files = files[1032:]
 
-    enc = encoder(q_channels)
     feature_fn = partial(get_features, winlen=winlen, winstep=winstep, n_mcep=n_mcep, mcep_alpha=mcep_alpha,
                          minf0=minf0, maxf0=maxf0, type=type)
     n_workers = cpu_count() // 2
@@ -74,7 +73,7 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
         futures = [executor.submit(feature_fn, f) for f in train_files]
         for future in tqdm(futures):
             name, data, feature = future.result()
-            data_dict[name] = enc(data).astype(np.uint8)
+            data_dict[name] = data
             data_dict[name + '_h'] = feature
     np.savez(train_data, **data_dict)
 
@@ -84,7 +83,7 @@ def preprocess_multi(wav_dir, output, winlen, winstep, n_mcep, mcep_alpha, minf0
         futures = [executor.submit(feature_fn, f) for f in test_files]
         for future in tqdm(futures):
             name, data, feature = future.result()
-            data_dict[name] = enc(data).astype(np.uint8)
+            data_dict[name] = data
             data_dict[name + '_h'] = feature
     np.savez(test_data, **data_dict)
 

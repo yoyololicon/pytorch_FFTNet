@@ -4,7 +4,7 @@ import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from scipy.interpolate import interp1d
-from utils import zero_padding
+from utils import zero_padding, np_mulaw, float2class
 
 
 class CMU_Dataset(Dataset):
@@ -56,11 +56,16 @@ class CMU_Dataset(Dataset):
         if self.train:
             rand_pos = np.random.randint(0, len(audio) - self.sample_size - 1)
             target = audio[rand_pos + 1:rand_pos + 1 + self.sample_size]
+            target = float2class(np_mulaw(target, self.channels), self.channels)
+
             audio = audio[rand_pos:rand_pos + self.sample_size]
+            audio = np_mulaw(audio, self.channels)
 
             if self.injected_noise:
-                audio += np.random.randn(audio.shape)
-                audio = np.clip(np.rint(audio), 0, self.channels - 1)
+                audio += np.random.randn(self.sample_size)/self.channels
+
+            audio = float2class(audio, self.channels)
+            audio = np.clip(audio, 0, self.channels - 1)
 
             # interpolation
             if self.interp_method == 'linear':
@@ -79,5 +84,5 @@ class CMU_Dataset(Dataset):
         else:
             name_code = [ord(c) for c in name]
             # the batch size should be 1 in test mode
-            return torch.LongTensor(name_code), torch.from_numpy(audio).long(), torch.from_numpy(
+            return torch.LongTensor(name_code), torch.from_numpy(audio).float(), torch.from_numpy(
                 local_condition).float()

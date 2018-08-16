@@ -122,7 +122,7 @@ if __name__ == '__main__':
     print('==> Building model..')
     net = general_FFTNet(radixs, 128, channels, aux_channels=features_size).cuda()
 
-    print(sum(p.numel() for p in net.parameters()), "of parameters.")
+    print(sum(p.numel() for p in net.parameters() if p.requires_grad), "of parameters.")
 
     optimizer = optim.Adam(net.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss()
