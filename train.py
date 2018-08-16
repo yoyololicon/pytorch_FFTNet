@@ -25,13 +25,13 @@ parser.add_argument('--minimum_f0', type=float, default=40)
 parser.add_argument('--maximum_f0', type=float, default=500)
 parser.add_argument('--q_channels', type=int, default=256, help='quantization channels')
 parser.add_argument('--interp_method', type=str, default='linear')
-parser.add_argument('--fft_channels', type=int, default=256, help='fftnet layer channels')
+parser.add_argument('--fft_channels', type=int, default=128, help='fftnet layer channels')
 parser.add_argument('--seq_M', type=int, default=5000, help='training sequence length')
 parser.add_argument('--radixs', nargs='+', type=int, default=[2] * 11)
 parser.add_argument('--batch_size', type=int, default=5)
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--steps', type=int, default=100000, help='iteration number')
-parser.add_argument('--without_noise_injecting', action='store_true')
+parser.add_argument('--noise_injecting', type=bool, default=True)
 parser.add_argument('--model_file', type=str, default='fftnet_model')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
                     help='Directory to save checkpoints.')
@@ -51,13 +51,13 @@ def main():
 
     print('==> Loading Dataset..')
     training_dataset = CMU_Dataset(args.data_dir, args.seq_M, args.q_channels, int(sampling_rate * args.window_step),
-                                   args.interp_method)
+                                   args.interp_method, injected_noise=args.noise_injecting)
     training_loader = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=4, shuffle=True)
 
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    net = general_FFTNet(radixs=args.radixs, aux_channels=args.feature_dim + 1, channels=args.fft_channels,
-                         classes=args.q_channels).to(device)
+    net = general_FFTNet(radixs=args.radixs, fft_channels=args.fft_channels, classes=args.q_channels,
+                         aux_channels=args.feature_dim + 1).to(device)
 
     if torch.cuda.device_count() > 1:
         net = torch.nn.DataParallel(net)
@@ -76,9 +76,6 @@ def main():
     while global_step < args.steps:
         for batch_idx, (inputs, targets, features) in enumerate(training_loader):
             inputs, targets, features = inputs.cuda(), targets.cuda(), features.cuda()
-
-            if not args.without_noise_injecting:
-                inputs += torch.randn_like(inputs) / args.q_channels
 
             optimizer.zero_grad()
 
