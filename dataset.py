@@ -14,12 +14,14 @@ class CMU_Dataset(Dataset):
                  quantization_channels,
                  hopsize,
                  interp_method,
-                 train=True):
+                 train=True,
+                 injected_noise=True):
         self.train = train
         self.sample_size = sample_size
         self.channels = quantization_channels
         self.hopsize = hopsize
         self.interp_method = interp_method
+        self.injected_noise = injected_noise
         if train:
             npzfile = os.path.join(folder, "train.npz")
         else:
@@ -54,7 +56,11 @@ class CMU_Dataset(Dataset):
         if self.train:
             rand_pos = np.random.randint(0, len(audio) - self.sample_size - 1)
             target = audio[rand_pos + 1:rand_pos + 1 + self.sample_size]
-            audio = audio[rand_pos:rand_pos + self.sample_size].astype(float) / (self.channels - 1) * 2 - 1
+            audio = audio[rand_pos:rand_pos + self.sample_size]
+
+            if self.injected_noise:
+                audio += np.random.randn(audio.shape)
+                audio = np.clip(np.rint(audio), 0, self.channels - 1)
 
             # interpolation
             if self.interp_method == 'linear':
@@ -68,7 +74,7 @@ class CMU_Dataset(Dataset):
                 print("interpolation method", self.interp_method, "is not implemented.")
                 exit(1)
 
-            return torch.from_numpy(audio).float().view(1, -1), torch.from_numpy(target).long(), torch.from_numpy(
+            return torch.from_numpy(audio).long(), torch.from_numpy(target).long(), torch.from_numpy(
                 local_condition).float()
         else:
             name_code = [ord(c) for c in name]
