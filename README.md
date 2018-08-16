@@ -49,10 +49,10 @@ There are some files decoded in the [samples](samples) folder.
 - [x] Injected noise.
 - [ ] Voiced/unvoiced conditional sampling.
 - [ ] Post-synthesis denoising.
-- [X] Add checkpoints function in training.
 
 ## Notes
 
 * I combine two 1x1 convolution kernel to one 1x2 dilated kernel.
 This can remove redundant bias parameters and accelerate total speed.
-* Some details are differ from the paper.
+* The author said in the middle layers the channels size are 128 not 256, and some package like **Eigen** maybe helpful to
+use full CPU power. I need a good alternative in python.

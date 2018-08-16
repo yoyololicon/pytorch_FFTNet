@@ -23,8 +23,8 @@ parser.add_argument('--mcep_alpha', type=float, default=0.42, help='all-pass fil
                                                                    '8khz: 0.31.')
 parser.add_argument('--window_length', type=float, default=0.025)
 parser.add_argument('--window_step', type=float, default=0.01)
-parser.add_argument('--minimum_f0', type=float, default=40)
-parser.add_argument('--maximum_f0', type=float, default=500)
+parser.add_argument('--minimum_f0', type=float, default=71)
+parser.add_argument('--maximum_f0', type=float, default=800)
 parser.add_argument('--q_channels', type=int, default=256, help='quantization channels')
 parser.add_argument('--interp_method', type=str, default='linear')
 parser.add_argument('-c', type=float, default=2., help='a constant multiply before softmax.')
@@ -54,8 +54,9 @@ if __name__ == '__main__':
             # haven't implement
             pass
         elif args.outfile is not None:
-            id, _, h = get_features(args.infile, args.window_length, args.window_step, args.feature_dim,
-                                    args.mcep_alpha, args.minimum_f0, args.maximum_f0, args.feature_type)
+            id, _, h = get_features(args.infile, winlen=args.window_length, winstep=args.window_step,
+                                    n_mcep=args.feature_dim, mcep_alpha=args.mcep_alpha, minf0=args.minimum_f0,
+                                    maxf0=args.maximum_f0, type=args.feature_type)
 
             h = scaler.transform(h.T).T
             # interpolation

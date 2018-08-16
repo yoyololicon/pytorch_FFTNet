@@ -62,7 +62,7 @@ class CMU_Dataset(Dataset):
             audio = np_mulaw(audio, self.channels)
 
             if self.injected_noise:
-                audio += np.random.randn(self.sample_size)/self.channels
+                audio += np.random.randn(self.sample_size) / self.channels
 
             audio = float2class(audio, self.channels)
             audio = np.clip(audio, 0, self.channels - 1)
