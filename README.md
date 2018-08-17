@@ -55,4 +55,6 @@ There are some files decoded in the [samples](samples) folder.
 * I combine two 1x1 convolution kernel to one 1x2 dilated kernel.
 This can remove redundant bias parameters and accelerate total speed.
 * The author said in the middle layers the channels size are 128 not 256, and some package like **Eigen** maybe helpful to
-use full CPU power. I need a good alternative in python.
+use full CPU power.
+* The slow speed seems like a problem with python. I have tried using numpy, but still far from real time. 
+Export the model to onnx and run on c++ may be a good alternative.
