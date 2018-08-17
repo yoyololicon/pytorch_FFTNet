@@ -39,9 +39,7 @@ There are some files decoded in the [samples](samples) folder.
 
 ## Differences from paper
 
-* learning rate: 0.001 >> 0.0001
 * window size: 400 >> depend on minimum_f0 (cuz I use pyworld to get f0 and mcc coefficients)
-
 
 ## TODO
 
@@ -58,3 +56,18 @@ This can remove redundant bias parameters and accelerate total speed.
 use full CPU power.
 * The slow speed seems like a problem with python. I have tried using numpy, but still far from real time. 
 Export the model to onnx and run on c++ may be a good alternative.
+
+
+# FFTNet Variations
+
+## Radix-N FFTNet
+
+Use the flag _--radixs_ to specified each layer's radix.
+
+```
+# a radix-4 FFTNet with 1024 receptive field
+--radixs 4 4 4 4 4
+```
+
+The origin FFtNet use Radix-2 structure. In my experiment, a radix-4 network can still achieved similar result, 
+even radix-8.
