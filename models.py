@@ -47,13 +47,16 @@ class general_FFTLayer(nn.Module):
 
 
 class general_FFTNet(nn.Module):
-    def __init__(self, radixs=[2] * 11, fft_channels=128, classes=256, *, aux_channels=None):
+    def __init__(self, radixs=[2] * 11, fft_channels=128, classes=256, *, aux_channels=None, transpose=False):
         super().__init__()
         self.channels = fft_channels
         self.aux_channels = aux_channels
         self.classes = classes
-        N_seq = [reduce(mul, radixs[i:]) for i in range(len(radixs))]
-        self.r_field = N_seq[0]
+        if transpose:
+            N_seq = [reduce(mul, radixs[:i + 1]) for i in range(len(radixs))]
+        else:
+            N_seq = [reduce(mul, radixs[i:]) for i in range(len(radixs))]
+        self.r_field = reduce(mul, radixs)
         self.radixs = radixs
         self.N_seq = N_seq
 
@@ -61,15 +64,17 @@ class general_FFTNet(nn.Module):
         self.one_hot = One_Hot(classes)
 
         self.fft_layers = nn.ModuleList()
+        # generation buffers
+        self.buffers = nn.ParameterList()
         in_channels = classes
         for N, r in zip(N_seq, radixs):
             self.fft_layers.append(general_FFTLayer(in_channels, fft_channels, N, radix=r, aux_channels=aux_channels))
+            self.buffers.append(nn.Parameter(torch.empty(1, in_channels, N - N // r + 1).float(), requires_grad=False))
             in_channels = fft_channels
         self.fc_out = nn.Linear(in_channels, classes)
 
         # only used when generating
         self.padding_layer = nn.ConstantPad1d((self.r_field, 0), 0.)
-        self.init_buffer = nn.Parameter(torch.empty(1, self.classes, self.r_field).float(), requires_grad=False)
 
     def forward(self, x, h=None, zeropad=True):
         x = self.one_hot(x).transpose(1, 2)
@@ -93,55 +98,37 @@ class general_FFTNet(nn.Module):
 
     def fast_generate(self, num_samples=None, h=None, c=1, method='sampling'):
         # this method seems only 2~3 times faster
-        buf = self.init_buffer.fill_(0.)
+        for buf in self.buffers:
+            buf.fill_(0.)
 
         if method == 'argmax':
             predict_fn = self.argmax
         else:
             predict_fn = self.conditional_sampling
 
+        # empty sample
+        sample = self.buffers[0][:, :, 0]
+
         output_list = []
-        buf_list = []
         if h is None:
-            buf[:, randint(0, self.classes - 1), -1] = 1.
-            for fft_layer, r, N in zip(self.fft_layers, self.radixs, self.N_seq):
-                buf_list.append(buf[:, :, N // r - 1:])
-                buf = fft_layer(buf, zeropad=False)
+            sample[randint(0, self.classes - 1)] = 1.
+            for i in range(num_samples):
+                for j, layer in enumerate(self.fft_layers):
+                    torch.cat((self.buffers[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=self.buffers[j])
+                    sample = layer(self.buffers[j], zeropad=False)
 
-            # first sample
-            logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
-            sample = predict_fn(logits)
-            output_list.append(sample.item())
-            sample = self.one_hot(sample)
-
-            for i in range(1, num_samples):
-                for j in range(len(buf_list)):
-                    torch.cat((buf_list[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=buf_list[j])
-                    sample = self.fft_layers[j](buf_list[j], zeropad=False)
-
-                logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
+                logits = self.fc_out(sample.squeeze(2)).view(-1) * c
                 sample = predict_fn(logits)
                 output_list.append(sample.item())
                 sample = self.one_hot(sample)
         else:
             h = self.padding_layer(h)
-            pos = self.r_field + 1
-            for fft_layer, r, N in zip(self.fft_layers, self.radixs, self.N_seq):
-                buf_list.append(buf[:, :, N // r - 1:])
-                buf = fft_layer(buf, h[:, :, :pos], False)
+            for pos in range(self.r_field + 1, h.size(2) + 1):
+                for j, layer in enumerate(self.fft_layers):
+                    torch.cat((self.buffers[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=self.buffers[j])
+                    sample = layer(self.buffers[j], h[:, :, :pos], False)
 
-            # first sample
-            logits = self.fc_out(buf.transpose(1, 2)).view(-1) * c
-            sample = predict_fn(logits)
-            output_list.append(sample.item())
-            sample = self.one_hot(sample)
-
-            for pos in range(self.r_field + 2, h.size(2) + 1):
-                for j in range(len(buf_list)):
-                    torch.cat((buf_list[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=buf_list[j])
-                    sample = self.fft_layers[j](buf_list[j], h[:, :, :pos], False)
-
-                logits = self.fc_out(sample.transpose(1, 2)).view(-1) * c
+                logits = self.fc_out(sample.squeeze(2)).view(-1) * c
                 sample = predict_fn(logits)
                 output_list.append(sample.item())
                 sample = self.one_hot(sample)
