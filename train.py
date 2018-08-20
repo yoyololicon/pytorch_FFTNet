@@ -36,6 +36,7 @@ parser.add_argument('--model_file', type=str, default='fftnet_model')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/',
                     help='Directory to save checkpoints.')
 parser.add_argument('--checkpoint_step', type=int, default=5000)
+parser.add_argument('--transpose', action='store_true')
 
 sampling_rate = 16000
 
@@ -56,7 +57,7 @@ def main():
     print('==> Building model..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     net = general_FFTNet(radixs=args.radixs, fft_channels=args.fft_channels, classes=args.q_channels,
-                         aux_channels=args.feature_dim + 1).to(device)
+                         aux_channels=args.feature_dim + 1, transpose=args.transpose).to(device)
 
     if torch.cuda.device_count() > 1:
         net = torch.nn.DataParallel(net)

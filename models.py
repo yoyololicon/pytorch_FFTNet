@@ -107,15 +107,15 @@ class general_FFTNet(nn.Module):
             predict_fn = self.conditional_sampling
 
         # empty sample
-        sample = self.buffers[0][:, :, 0]
+        sample = self.buffers[0][0, :, 0]
 
         output_list = []
         if h is None:
             sample[randint(0, self.classes - 1)] = 1.
             for i in range(num_samples):
-                for j, layer in enumerate(self.fft_layers):
+                for j in range(len(self.radixs)):
                     torch.cat((self.buffers[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=self.buffers[j])
-                    sample = layer(self.buffers[j], zeropad=False)
+                    sample = self.fft_layers[j](self.buffers[j], zeropad=False)
 
                 logits = self.fc_out(sample.squeeze(2)).view(-1) * c
                 sample = predict_fn(logits)
@@ -124,9 +124,9 @@ class general_FFTNet(nn.Module):
         else:
             h = self.padding_layer(h)
             for pos in range(self.r_field + 1, h.size(2) + 1):
-                for j, layer in enumerate(self.fft_layers):
+                for j in range(len(self.radixs)):
                     torch.cat((self.buffers[j][:, :, 1:], sample.view(1, -1, 1)), 2, out=self.buffers[j])
-                    sample = layer(self.buffers[j], h[:, :, :pos], False)
+                    sample = self.fft_layers[j](self.buffers[j], h[:, :, :pos], False)
 
                 logits = self.fc_out(sample.squeeze(2)).view(-1) * c
                 sample = predict_fn(logits)
