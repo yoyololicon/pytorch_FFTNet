@@ -11,7 +11,7 @@ from librosa.util import frame
 import pyworld as world
 import pysptk as sptk
 import numpy as np
-from utils import zero_padding, encoder
+from utils import repeat_last_padding, encoder
 from sklearn.preprocessing import StandardScaler
 
 
@@ -33,6 +33,8 @@ def get_features(filename, *, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0,
     else:
         h = mfcc(x, sr, n_mfcc=n_mcep, n_fft=window_size, hop_length=hop_size)
     h = np.vstack((h, f0))
+    maxlen = len(x) // hop_size + 2
+    h = repeat_last_padding(h, maxlen)
     id = os.path.basename(filename).replace(".wav", "")
     return (id, x, h)
 
@@ -50,7 +52,7 @@ def calc_stats(npzfile, out_dir):
     np.savez(os.path.join(out_dir, 'scaler.npz'), mean=np.float32(mean), scale=np.float32(scale))
 
 
-def preprocess_multi(wav_dir, output, *, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
+def preprocess_cmu(wav_dir, output, *, q_channels, winlen, winstep, n_mcep, mcep_alpha, minf0, maxf0, type):
     in_dir = os.path.join(wav_dir)
     out_dir = os.path.join(output)
     train_data = os.path.join(out_dir, 'train.npz')
@@ -68,12 +70,13 @@ def preprocess_multi(wav_dir, output, *, winlen, winstep, n_mcep, mcep_alpha, mi
     print("Running", n_workers, "processes.")
 
     data_dict = {}
+    enc = encoder(q_channels)
     print("Processing training data ...")
     with ProcessPoolExecutor(n_workers) as executor:
         futures = [executor.submit(feature_fn, f) for f in train_files]
         for future in tqdm(futures):
             name, data, feature = future.result()
-            data_dict[name] = data
+            data_dict[name] = enc(data).astype(np.uint8)
             data_dict[name + '_h'] = feature
     np.savez(train_data, **data_dict)
 
@@ -83,7 +86,7 @@ def preprocess_multi(wav_dir, output, *, winlen, winstep, n_mcep, mcep_alpha, mi
         futures = [executor.submit(feature_fn, f) for f in test_files]
         for future in tqdm(futures):
             name, data, feature = future.result()
-            data_dict[name] = data
+            data_dict[name] = enc(data).astype(np.uint8)
             data_dict[name + '_h'] = feature
     np.savez(test_data, **data_dict)
 
