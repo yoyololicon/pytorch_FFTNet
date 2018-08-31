@@ -57,9 +57,9 @@ This can remove redundant bias parameters and accelerate total speed.
 * My model will get stuck at the begining (loss aroung 4.x) for thousands of step, then go down very fast to 2.6 ~ 3.0.
 Use smaller learning rate can help a little bit.
 
-# FFTNet Variations
+## Variations of FFTNet
 
-## Radix-N FFTNet
+### Radix-N FFTNet
 
 Use the flag _--radixs_ to specify each layer's radix.
 
@@ -71,11 +71,21 @@ python train.py --radixs 4 4 4 4 4
 The original FFtNet use Radix-2 structure. In my experiment, a radix-4 network can still achieved similar result, 
 even radix-8, and by reduce the number of layers, it can run faster.
 
-## Transposed FFTNet
+### Transposed FFTNet
 
-![fftnet dilated structure](https://imgur.com/NWfSTpz)
-If you watch closely, you'll find out that FFTNet dilated structure is actually a transposed version of WaveNet.
+Fig. 2 in the paper can be redraw as dilated structure with kernel size 2 (also means radix size 2).
 
+![](images/fftnet_dilated.png)
+
+If we draw all the lines;
+
+![](images/fftnet_dilated2.png)
+
+and transpose the the graph to let the arrows go backward, you'll find a WaveNet dilated structure.
+
+![](images/fftnet_wavenet.png)
+
+Add the flag __--transpose__, you can get a simplified version of WaveNet.
 ```
 # a WaveNet-like structure model withou gated/residual/skip unit.
 python train.py --transpose
