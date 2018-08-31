@@ -4,8 +4,6 @@ import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from scipy.interpolate import interp1d
-from utils import zero_padding, np_mulaw, float2class
-
 
 class CMU_Dataset(Dataset):
     def __init__(self,
@@ -14,6 +12,8 @@ class CMU_Dataset(Dataset):
                  quantization_channels,
                  hopsize,
                  interp_method,
+                 *,
+                 predict_dist=1,
                  train=True,
                  injected_noise=True):
         self.train = train
@@ -22,6 +22,7 @@ class CMU_Dataset(Dataset):
         self.hopsize = hopsize
         self.interp_method = interp_method
         self.injected_noise = injected_noise
+        self.predict_dist = predict_dist
         if train:
             npzfile = os.path.join(folder, "train.npz")
         else:
@@ -47,34 +48,28 @@ class CMU_Dataset(Dataset):
 
     def __getitem__(self, index):
         name = self.names_list[index]
-        audio = self.data_buffer[name]
+        audio = self.data_buffer[name].astype(int)
         local_condition = self.data_buffer[name + '_h']
 
-        # pad zeros to prevent out range error
-        local_condition = zero_padding(local_condition, len(audio) // self.hopsize + 2, 1)
-
         if self.train:
-            rand_pos = np.random.randint(0, len(audio) - self.sample_size - 1)
-            target = audio[rand_pos + 1:rand_pos + 1 + self.sample_size]
-            target = float2class(np_mulaw(target, self.channels), self.channels)
-
+            rand_pos = np.random.randint(0, len(audio) - self.sample_size - self.predict_dist)
+            target = audio[rand_pos + self.predict_dist:rand_pos + self.predict_dist + self.sample_size]
             audio = audio[rand_pos:rand_pos + self.sample_size]
-            audio = np_mulaw(audio, self.channels)
 
             if self.injected_noise:
-                audio += np.random.randn(self.sample_size) / self.channels
-
-            audio = float2class(audio, self.channels)
-            audio = np.clip(audio, 0, self.channels - 1)
+                audio += np.rint(np.random.randn(self.sample_size) * 0.5).astype(int)
+                audio = np.clip(audio, 0, self.channels - 1)
 
             # interpolation
             if self.interp_method == 'linear':
                 x = np.arange(local_condition.shape[1]) * self.hopsize
                 f = interp1d(x, local_condition, copy=False, axis=1)
-                local_condition = f(np.arange(rand_pos + 1, rand_pos + 1 + self.sample_size))
+                local_condition = f(
+                    np.arange(rand_pos + self.predict_dist, rand_pos + self.predict_dist + self.sample_size))
             elif self.interp_method == 'repeat':
                 local_condition = np.repeat(local_condition, self.hopsize, axis=1)
-                local_condition = local_condition[:, rand_pos + 1:rand_pos + 1 + self.sample_size]
+                local_condition = local_condition[:,
+                                  rand_pos + self.predict_dist:rand_pos + self.predict_dist + self.sample_size]
             else:
                 print("interpolation method", self.interp_method, "is not implemented.")
                 exit(1)
@@ -84,5 +79,5 @@ class CMU_Dataset(Dataset):
         else:
             name_code = [ord(c) for c in name]
             # the batch size should be 1 in test mode
-            return torch.LongTensor(name_code), torch.from_numpy(audio).float(), torch.from_numpy(
+            return torch.LongTensor(name_code), torch.from_numpy(audio).long(), torch.from_numpy(
                 local_condition).float()
