@@ -6,3 +6,4 @@ librosa
 pyworld
 pysptk
 torchaudio
+tqdm

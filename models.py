@@ -5,8 +5,6 @@ import torch.nn.functional as F
 from operator import mul
 from functools import reduce
 
-from random import randint
-
 
 class One_Hot(nn.Module):
     def __init__(self, depth):

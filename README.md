@@ -10,7 +10,8 @@ pip install -r requirements.txt
 
 2. Download [CMU_ARCTIC](http://festvox.org/cmu_arctic/) dataset.
 
-3. Train the model and save. Raise the flag _--preprocess_ when execute the first time.
+3. Train the model and save. The default parameters are pretty much the same as int the original paper. 
+Raise the flag _--preprocess_ when execute the first time.
 
 ```
 python train.py \
@@ -45,17 +46,14 @@ There are some files decoded in the [samples](samples) folder.
 
 - [x] Zero padding.
 - [x] Injected noise.
-- [ ] Voiced/unvoiced conditional sampling.
-- [ ] Post-synthesis denoising.
+- [x] Voiced/unvoiced conditional sampling.
+- [x] Post-synthesis denoising.
 
 ## Notes
 
 * I combine two 1x1 convolution kernel to one 1x2 dilated kernel.
 This can remove redundant bias parameters and accelerate total speed.
-* The author said in the middle layers the channels size are 128 not 256, and some package like **Eigen** maybe helpful to
-use full CPU power.
-* The slow speed seems like a problem with python. I have tried using numpy, but still far from real time. 
-Export the model to onnx and run on c++ may be a good alternative.
+* The author said in the middle layers the channels size are 128 not 256.
 * My model will get stuck at the begining (loss aroung 4.x) for thousands of step, then go down very fast to 2.6 ~ 3.0.
 Use smaller learning rate can help a little bit.
 
@@ -63,19 +61,20 @@ Use smaller learning rate can help a little bit.
 
 ## Radix-N FFTNet
 
-Use the flag _--radixs_ to specified each layer's radix.
+Use the flag _--radixs_ to specify each layer's radix.
 
 ```
 # a radix-4 FFTNet with 1024 receptive field
 python train.py --radixs 4 4 4 4 4
 ```
 
-The origin FFtNet use Radix-2 structure. In my experiment, a radix-4 network can still achieved similar result, 
-even radix-8.
+The original FFtNet use Radix-2 structure. In my experiment, a radix-4 network can still achieved similar result, 
+even radix-8, and by reduce the number of layers, it can run faster.
 
 ## Transposed FFTNet
 
-If you watch closedly, you'll find out that FFTNet dilated structure is actually a transposed version of WaveNet.
+![fftnet dilated structure](https://imgur.com/NWfSTpz)
+If you watch closely, you'll find out that FFTNet dilated structure is actually a transposed version of WaveNet.
 
 ```
 # a WaveNet-like structure model withou gated/residual/skip unit.
